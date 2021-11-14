@@ -1,18 +1,11 @@
-defmodule DataSchema.InvalidSchemaError do
-  @moduledoc """
-  An error for when a schema is specified incorrectly.
-  """
-  defexception message:
-                 "The provided DataSchema fields are invalid. Check the docs in " <>
-                   " DataSchema for more information on the " <>
-                   "available fields."
-end
-
 defmodule DataSchema do
   @moduledoc """
   Documentation for `DataSchema`.
   """
 
+  @doc """
+  A macro that creates a data schema.
+  """
   defmacro data_schema(fields, data_accessor) do
     quote do
       def __data_schema_fields, do: unquote(fields)
@@ -61,6 +54,37 @@ defmodule DataSchema do
     end
   end
 
+  @doc """
+  Accepts an data schema module and some source data and attempts to create the struct
+  defined in the schema from the source data.
+
+  Right now this takes a simple approach to creating the struct - whatever you return from
+  a casting function will be set as the value of the struct field. You should raise if
+  you want casting to fail.
+
+  That means we don't do anything to check at runtime that the type of the field is what
+  you specified it should be.
+
+  In the future we could change this to collect errors or to return errors in the case of
+  failed casting. Additionally we do not enforce not null, so if you wish to raise when
+  a field is nil you should handle that in the casting function used.
+
+
+  ### Examples
+
+      data = %{ "spice" => "enables space travel" }
+
+      defmodule Foo do
+        require DataSchema
+
+        DataSchema.data_schema(
+          [field: {:a_rocket, "spice", & &1}],
+          MapAccessor
+        )
+      end
+
+      DataSchema.to_struct(data, Foo)
+  """
   def to_struct(data, %schema{}) do
     to_struct(data, schema)
   end
