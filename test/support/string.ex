@@ -1,6 +1,6 @@
 defmodule DataSchema.String do
   @moduledoc """
-  A simple type for your data schemas that will cast incoming data to a string.
+  just used for testing.
   """
 
   # Nil is a sticking point..... Do we guard against it? Allow it? HAve another

@@ -92,7 +92,7 @@ defmodule DraftPost do
   import DataSchema, only: [data_schema: 2]
 
   data_schema([
-    field: {:content, "content", DataSchema.String}
+    field: {:content, "content", &to_string/1}
   ], MapAccessor)
 end
 
@@ -100,7 +100,7 @@ defmodule Comment do
   import DataSchema, only: [data_schema: 2]
 
   data_schema([
-    field: {:text, "text", DataSchema.String}
+    field: {:text, "text", &to_string/1}
   ], MapAccessor)
 
   def cast(data) do
@@ -112,7 +112,7 @@ defmodule BlogPost do
   import DataSchema, only: [data_schema: 2]
 
   data_schema([
-    field: {:content, "content", DataSchema.String},
+    field: {:content, "content", &to_string/1},
     list_of: {:comments, "comments", Comment},
     has_one: {:draft, "draft", DraftPost},
     aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1},
@@ -149,7 +149,7 @@ defmodule DraftPost do
   import MapAccessor, only: [map_schema: 1]
 
   map_schema([
-    field: {:content, "content", DataSchema.String}
+    field: {:content, "content", &to_string/1}
   ])
 end
 
@@ -157,7 +157,7 @@ defmodule Comment do
   import MapAccessor, only: [map_schema: 1]
 
   map_schema([
-    field: {:text, "text", DataSchema.String}
+    field: {:text, "text", &to_string/1}
   ])
 
   def cast(data) do
@@ -169,7 +169,7 @@ defmodule BlogPost do
   import MapAccessor, only: [map_schema: 1]
 
   map_schema([
-    field: {:content, "content", DataSchema.String},
+    field: {:content, "content", &to_string/1},
     list_of: {:comments, "comments", Comment},
     has_one: {:draft, "draft", DraftPost},
     aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1},
@@ -268,7 +268,7 @@ defmodule DraftPost do
   import XpathAccessor, only: [xpath_schema: 1]
 
   xpath_schema([
-    field: {:content, "./Content/text()", DataSchema.String}
+    field: {:content, "./Content/text()", &to_string/1}
   ])
 end
 
@@ -276,7 +276,7 @@ defmodule Comment do
   import XpathAccessor, only: [xpath_schema: 1]
 
   xpath_schema([
-    field: {:text, "./text()", DataSchema.String}
+    field: {:text, "./text()", &to_string/1}
   ])
 
   def cast(data) do
@@ -288,7 +288,7 @@ defmodule BlogPost do
   import XpathAccessor, only: [xpath_schema: 1]
 
   xpath_schema([
-    field: {:content, "/Blog/Content/text()", DataSchema.String},
+    field: {:content, "/Blog/Content/text()", &to_string/1},
     list_of: {:comments, "//Comment", Comment},
     has_one: {:draft, "/Blog/Draft", DraftPost},
     aggregate: {:post_datetime, %{date: "/Blog/@date", time: "/Blog/@time"}, &BlogPost.to_datetime/1},
