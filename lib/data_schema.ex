@@ -8,7 +8,7 @@ defmodule DataSchema do
   Below is an example of a simple schema:
 
       defmodule Blog do
-        import DataSchema, only: [data_schema: 2]
+        import DataSchema, only: [data_schema: 1]
 
         data_schema([
           field: {:name, "name", &to_string/1}
@@ -18,7 +18,9 @@ defmodule DataSchema do
   This says we will create a struct with a `:name` key and will get the value for that key
   from under the `"name"` key in the source data. That value will be passed to `to_string/1`
   and the result of that function will end up as the value under `:name` in the resulting
-  struct. In general this is the format for a field:
+  struct.
+
+  In general this is the format for a field:
 
       field {:content, "text", &cast_string/1}
                ^         ^              ^
@@ -42,6 +44,8 @@ defmodule DataSchema do
   Defines a data schema with the provided fields. Uses the default DataSchema.MapAccessor
   as the accessor, meaning it will expect the source data to be an elixir map and will
   use `Map.get/2` to access the required values in the source data.
+
+  See data_schema/2 for more details.
   """
   defmacro data_schema(fields) do
     quote do
@@ -50,7 +54,20 @@ defmodule DataSchema do
   end
 
   @doc """
-  A macro that creates a data schema.
+  A macro that creates a data schema. By default all struct fields are required but you
+  can specify that a field be optional by passing the correct option in. See the Options
+  section below for more.
+
+
+  ### Options
+
+  Available options are:
+
+    - `:optional?` - specifies whether or not the field in the struct should be included in
+    the @enforce_keys for the struct. By default all fields are required but you can mark
+    them as optional by setting this to `true`.
+
+
   """
   defmacro data_schema(fields, data_accessor) do
     quote do
