@@ -4,13 +4,13 @@ defmodule DataSchemaMapTest do
   use ExUnit.Case, async: true
 
   defmodule DraftPost do
-    import MapAccessor, only: [map_schema: 1]
+    import DataSchema.MapAccessor, only: [map_schema: 1]
 
     map_schema(field: {:content, "content", DataSchema.String})
   end
 
   defmodule Comment do
-    import MapAccessor, only: [map_schema: 1]
+    import DataSchema.MapAccessor, only: [map_schema: 1]
 
     map_schema(field: {:text, "text", DataSchema.String})
 
@@ -20,7 +20,7 @@ defmodule DataSchemaMapTest do
   end
 
   defmodule BlogPost do
-    import MapAccessor, only: [map_schema: 1]
+    import DataSchema.MapAccessor, only: [map_schema: 1]
 
     map_schema(
       field: {:content, "content", DataSchema.String},

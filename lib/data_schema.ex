@@ -1,7 +1,53 @@
 defmodule DataSchema do
   @moduledoc """
-  Documentation for `DataSchema`.
+  DataSchemas are declarative specifications of how to create structs from some kind of
+  data source. For example you can define a schema that knows how to turn an elixir map
+  into a struct, casting all of the values as it goes. Alternatively you can set up a
+  schema to ingest XML data and create structs from the values inside the XML.
+
+  Below is an example of a simple schema:
+
+      defmodule Blog do
+        import DataSchema, only: [data_schema: 2]
+
+        data_schema([
+          field: {:name, "name", &to_string/1}
+        ])
+      end
+
+  This says we will create a struct with a `:name` key and will get the value for that key
+  from under the `"name"` key in the source data. That value will be passed to `to_string/1`
+  and the result of that function will end up as the value under `:name` in the resulting
+  struct. In general this is the format for a field:
+
+      field {:content, "text", &cast_string/1}
+               ^         ^              ^
+      struct field       |              |
+          path to data in the source    |
+                                 casting function
+
+
+  There are 4 kinds of struct fields we can have:
+
+  1. `field`     - The value will be a casted value from the source data.
+  2. `list_of`   - The value will be a list of casted values created from the source data.
+  3. `has_one`   - The value will be created from a nested data schema (so will be a struct)
+  4. `aggregate` - The value will a casted value formed from multiple bits of data in the source.
+
+
+
   """
+
+  @doc """
+  Defines a data schema with the provided fields. Uses the default DataSchema.MapAccessor
+  as the accessor, meaning it will expect the source data to be an elixir map and will
+  use `Map.get/2` to access the required values in the source data.
+  """
+  defmacro data_schema(fields) do
+    quote do
+      DataSchema.data_schema(unquote(fields), DataSchema.MapAccessor)
+    end
+  end
 
   @doc """
   A macro that creates a data schema.

@@ -2,7 +2,11 @@
 
 <!-- We def want a livebook for this. So much easier to explain. -->
 
-Data schemas are declarative descriptions of how to create a struct from some input data. You can set up different schemas to handle different kinds of input data.
+Data schemas are declarative descriptions of how to create a struct from some input data. You can set up different schemas to handle different kinds of input data. By default we assume the incoming data is a map, but you can configure schemas to work with any arbitrary data input including XML and json.
+
+Data Schemas really shine when working with API responses - converting the response into trusted internal data easily and efficiently.
+
+## Creating A Simple Schema
 
 Let's think of creating a struct as taking some source data and turning it into the desired struct. To do this we need to know at least three things:
 
@@ -53,14 +57,118 @@ And now let's assume the struct we wish to make is this one:
 }
 ```
 
-As we mentioned before we want to be able to handle multiple different kinds of source data in different schemas. For each type of source data we want to be able to specify how you access the data for each field type, we do that by providing a data accessor module that implements the `DataAccessBehaviour` when we create the schema.
-
-When creating the struct DataSchema will call the relevant function for the field we are creating, passing it the source data and the path to the value(s) in the source.
-
-Given that the source data is a map, we can pass a simple MapAccessor:
+We can describe the following schemas to enable this:
 
 ```elixir
-defmodule MapAccessor do
+defmodule DraftPost do
+  import DataSchema, only: [data_schema: 1]
+
+  data_schema([
+    field: {:content, "content", &to_string/1}
+  ])
+end
+
+defmodule Comment do
+  import DataSchema, only: [data_schema: 1]
+
+  data_schema([
+    field: {:text, "text", &to_string/1}
+  ])
+
+  def cast(data) do
+    DataSchema.to_struct(data, __MODULE__)
+  end
+end
+
+defmodule BlogPost do
+  import DataSchema, only: [data_schema: 1]
+
+  data_schema([
+    field: {:content, "content", &to_string/1},
+    list_of: {:comments, "comments", Comment},
+    has_one: {:draft, "draft", DraftPost},
+    aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1},
+  ])
+
+  def to_datetime(%{date: date, time: time}) do
+    date = Date.from_iso8601!(date)
+    time = Time.from_iso8601!(time)
+    {:ok, datetime} = NaiveDateTime.new(date, time)
+    datetime
+  end
+end
+```
+
+Then to transform some input data into the desired struct we can call `DataSchema.to_struct/2` which works recursively to transform the input data into the struct defined by the schema.
+
+```elixir
+source_data = %{
+  "content" => "This is a blog post",
+  "comments" => [%{"text" => "This is a comment"},%{"text" => "This is another comment"}],
+  "draft" => %{"content" => "This is a draft blog post"},
+  "date" => "2021-11-11",
+  "time" => "14:00:00",
+  "metadata" => %{ "rating" => 0}
+}
+
+DataSchema.to_struct(source_data, BlogPost)
+# This will output the following:
+
+%BlogPost{
+  content: "This is a blog post",
+  comments: [%Comment{text: "This is a comment"}, %Comment{text: "This is another comment"}]
+  draft: %DraftPost{content: "This is a draft blog post"}}
+  post_datetime: ~N[2020-11-11 14:00:00]
+}
+```
+
+## Different Source Data Types
+
+As we mentioned before we want to be able to handle multiple different kinds of source data in our schemas. For each type of source data we want to be able to specify how you access the data for each field type. We do that by providing a "data accessor" (a module that implements the `DataSchema.DataAccessBehaviour`) when we create the schema. By default if you do not provide a specific data accessor module we use `DataSchema.MapAccessor`. That means the above example is equivalent to doing the following:
+
+```elixir
+defmodule DraftPost do
+  import DataSchema, only: [data_schema: 2]
+
+  data_schema([
+    field: {:content, "content", &to_string/1}
+  ], DataSchema.MapAccessor)
+end
+
+defmodule Comment do
+  import DataSchema, only: [data_schema: 2]
+
+  data_schema([
+    field: {:text, "text", &to_string/1}
+  ], DataSchema.MapAccessor)
+
+  def cast(data) do
+    DataSchema.to_struct(data, __MODULE__)
+  end
+end
+
+defmodule BlogPost do
+  import DataSchema, only: [data_schema: 2]
+
+  data_schema([
+    field: {:content, "content", &to_string/1},
+    list_of: {:comments, "comments", Comment},
+    has_one: {:draft, "draft", DraftPost},
+    aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1},
+  ], DataSchema.MapAccessor)
+
+  def to_datetime(%{date: date, time: time}) do
+    date = Date.from_iso8601!(date)
+    time = Time.from_iso8601!(time)
+    {:ok, datetime} = NaiveDateTime.new(date, time)
+    datetime
+  end
+end
+```
+When creating the struct DataSchema will call the relevant function for the field we are creating, passing it the source data and the path to the value(s) in the source. Our `DataSchema.MapAccessor` looks like this:
+
+```elixir
+defmodule DataSchema.MapAccessor do
   @behaviour DataSchema.DataAccessBehaviour
 
   @impl true
@@ -85,57 +193,15 @@ defmodule MapAccessor do
 end
 ```
 
-So now we can define the following data_schemas
+We can clean up our schema definitions a bit with currying. Instead of passing `DataSchema.MapAccessor` every time we create a schema we can define a helper function like so:
 
 ```elixir
-defmodule DraftPost do
-  import DataSchema, only: [data_schema: 2]
-
-  data_schema([
-    field: {:content, "content", &to_string/1}
-  ], MapAccessor)
-end
-
-defmodule Comment do
-  import DataSchema, only: [data_schema: 2]
-
-  data_schema([
-    field: {:text, "text", &to_string/1}
-  ], MapAccessor)
-
-  def cast(data) do
-    DataSchema.to_struct(data, __MODULE__)
-  end
-end
-
-defmodule BlogPost do
-  import DataSchema, only: [data_schema: 2]
-
-  data_schema([
-    field: {:content, "content", &to_string/1},
-    list_of: {:comments, "comments", Comment},
-    has_one: {:draft, "draft", DraftPost},
-    aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1},
-  ], MapAccessor)
-
-  def to_datetime(%{date: date, time: time}) do
-    date = Date.from_iso8601!(date)
-    time = Time.from_iso8601!(time)
-    {:ok, datetime} = NaiveDateTime.new(date, time)
-    datetime
-  end
-end
-```
-
-But we can clean this up a bit with currying. Instead of passing `MapAccessor` every time we create a schema we can define a helper function like so:
-
-```elixir
-defmodule MapAccessor do
+defmodule DataSchema.MapAccessor do
   ...
   defmacro map_schema(fields) do
     quote do
       require DataSchema
-      DataSchema.data_schema(unquote(fields), MapAccessor)
+      DataSchema.data_schema(unquote(fields), DataSchema.MapAccessor)
     end
   end
   ...
@@ -184,27 +250,7 @@ defmodule BlogPost do
 end
 ```
 
-Now we can create our struct from the source data:
-
-```elixir
-source_data = %{
-  "content" => "This is a blog post",
-  "comments" => [%{"text" => "This is a comment"},%{"text" => "This is another comment"}],
-  "draft" => %{"content" => "This is a draft blog post"},
-  "date" => "2021-11-11",
-  "time" => "14:00:00",
-  "metadata" => %{ "rating" => 0}
-}
-
-DataSchema.to_struct(source_data, BlogPost)
-
-# => %BlogPost{
-#  content: "This is a blog post",
-#  comments: [%Comment{text: "This is a comment"}, %Comment{text: "This is another comment"}]
-#  draft: %DraftPost{content: "This is a draft blog post"}}
-#  post_datetime: ~N[2020-11-11 14:00:00]
-#}
-```
+This means should we want to change how we access data (say we wanted to use `Map.fetch!` instead of `Map.get`) we would only need to change the accessor used in one place - inside `map_schema/1`.
 
 ### XML Schemas
 
@@ -243,6 +289,8 @@ defmodule XpathAccessor do
   end
 end
 ```
+
+As we can see our accessor uses the library [Sweet XML](https://github.com/kbrw/sweet_xml) to access the XML. That means if we wanted to change the library later we would only need to alter this one module for all of our schemas to benefit from the change.
 
 Our source data looks like this:
 
@@ -306,16 +354,32 @@ end
 And now we can transform:
 
 ```elixir
+source_data = """
+<Blog date="2021-11-11" time="14:00:00">
+  <Content>This is a blog post</Content>
+  <Comments>
+    <Comment>This is a comment</Comment>
+    <Comment>This is another comment</Comment>
+  </Comments>
+  <Draft>
+    <Content>This is a draft blog post</Content>
+  </Draft>
+</Blog>
+"""
+
 DataSchema.to_struct(source_data, BlogPost)
-# => %BlogPost{
-#   comments: [
-#     %Comment{text: "This is a comment"},
-#     %Comment{text: "This is another comment"}
-#   ],
-#   content: "This is a blog post",
-#   draft: %DraftPost{content: "This is a draft blog post"},
-#   post_datetime: ~N[2021-11-11 14:00:00]
-# }
+
+# This will output:
+
+ %BlogPost{
+   comments: [
+     %Comment{text: "This is a comment"},
+     %Comment{text: "This is another comment"}
+   ],
+   content: "This is a blog post",
+   draft: %DraftPost{content: "This is a draft blog post"},
+   post_datetime: ~N[2021-11-11 14:00:00]
+ }
 ```
 
 ### JSONPath Schemas
