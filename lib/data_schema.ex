@@ -321,12 +321,18 @@ defmodule DataSchema do
         end
 
       {:has_one, {field, path, cast_module, _opts}}, struct ->
-        value = to_struct(accessor.has_one(data, path), cast_module)
-        %{struct | field => value}
+        case to_struct(accessor.has_one(data, path), cast_module) do
+          {:error, _} = error -> {:halt, error}
+          :error -> {:halt, :error}
+          value -> {:cont, %{struct | field => value}}
+        end
 
       {:has_one, {field, path, cast_module}}, struct ->
-        value = to_struct(accessor.has_one(data, path), cast_module)
-        %{struct | field => value}
+        case to_struct(accessor.has_one(data, path), cast_module) do
+          {:error, _} = error -> {:halt, error}
+          :error -> {:halt, :error}
+          value -> {:cont, %{struct | field => value}}
+        end
 
       {:list_of, {field, path, cast_module, _opts}}, struct ->
         accessor.list_of(data, path)
@@ -367,9 +373,6 @@ defmodule DataSchema do
           relations when is_list(relations) ->
             {:cont, %{struct | field => :lists.reverse(relations)}}
         end
-
-        # relations = Enum.map(accessor.list_of(data, path), &call_cast_fn(cast_module, &1))
-        # %{struct | field => relations}
     end)
   end
 
