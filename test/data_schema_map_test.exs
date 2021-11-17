@@ -1,18 +1,16 @@
 defmodule DataSchemaMapTest do
-  use ExUnit.Case
-
   use ExUnit.Case, async: true
 
   defmodule DraftPost do
-    import DataSchema.MapAccessor, only: [map_schema: 1]
+    import DataSchema, only: [data_schema: 2]
 
-    map_schema(field: {:content, "content", DataSchema.String})
+    data_schema([field: {:content, "content", DataSchema.String}], DataSchema.MapAccessor)
   end
 
   defmodule Comment do
-    import DataSchema.MapAccessor, only: [map_schema: 1]
+    import DataSchema, only: [data_schema: 2]
 
-    map_schema(field: {:text, "text", DataSchema.String})
+    data_schema([field: {:text, "text", DataSchema.String}], DataSchema.MapAccessor)
 
     def cast(data) do
       DataSchema.to_struct(data, __MODULE__)
@@ -20,13 +18,16 @@ defmodule DataSchemaMapTest do
   end
 
   defmodule BlogPost do
-    import DataSchema.MapAccessor, only: [map_schema: 1]
+    import DataSchema, only: [data_schema: 2]
 
-    map_schema(
-      field: {:content, "content", DataSchema.String},
-      list_of: {:comments, "comments", Comment},
-      has_one: {:draft, "draft", DraftPost},
-      aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1}
+    data_schema(
+      [
+        field: {:content, "content", DataSchema.String},
+        list_of: {:comments, "comments", Comment},
+        has_one: {:draft, "draft", DraftPost},
+        aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1}
+      ],
+      DataSchema.MapAccessor
     )
 
     def to_datetime(%{date: date_string, time: time_string}) do
@@ -35,22 +36,6 @@ defmodule DataSchemaMapTest do
       {:ok, datetime} = NaiveDateTime.new(date, time)
       datetime
     end
-  end
-
-  defmodule OptionalTest do
-    require DataSchema
-
-    DataSchema.data_schema(
-      [
-        field: {:content, "content", DataSchema.String, optional?: true},
-        list_of: {:comments, "comments", Comment, optional?: true},
-        has_one: {:draft, "draft", DraftPost, optional?: true},
-        aggregate:
-          {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1,
-           optional?: true}
-      ],
-      XpathAccessor
-    )
   end
 
   test "Fields are required by default" do
@@ -70,9 +55,8 @@ defmodule DataSchemaMapTest do
     end)
   end
 
-  test "Fields can be marked as optional" do
-    # This is not an error, effectively
-    assert %OptionalTest{}
+  test "a private function is added which returns the map accessor" do
+    assert BlogPost.__data_accessor() == DataSchema.MapAccessor
   end
 
   describe "to_struct/2" do

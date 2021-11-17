@@ -89,6 +89,23 @@ defmodule DataSchemaXmlTest do
     assert %OptionalTest{}
   end
 
+  test "a private function is added which returns the map accessor" do
+    assert SteamedHam.__data_accessor() == XpathAccessor
+  end
+
+  test "fields are added as a secret fn" do
+    assert SteamedHam.__data_schema_fields() == [
+             field: {:type, "./Type/text()", &String.upcase/1},
+             list_of: {:salads, "./Salads/Salad", DataSchemaXmlTest.Salad},
+             has_one: {:sauce, "./Sauce", DataSchemaXmlTest.Sauce},
+             aggregate: {
+               :ready_datetime,
+               %{date: "./ReadyDate/text()", time: "./ReadyTime/text()"},
+               &DataSchemaXmlTest.SteamedHam.datetime/1
+             }
+           ]
+  end
+
   describe "to_struct/2" do
     test "casts a :field" do
       burger = DataSchema.to_struct(xml(), SteamedHam)

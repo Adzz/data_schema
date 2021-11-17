@@ -23,11 +23,13 @@ defmodule DataSchema do
   In general this is the format for a field:
 
       field {:content, "text", &cast_string/1}
-               ^         ^              ^
-      struct field       |              |
-          path to data in the source    |
-                                 casting function
+      #  ^         ^      ^              ^
+      # field type |      |              |
+      # struct key name   |              |
+      #    path to data in the source    |
+      #                           casting function
 
+  ### Field Types
 
   There are 4 kinds of struct fields we can have:
 
@@ -36,16 +38,43 @@ defmodule DataSchema do
   3. `has_one`   - The value will be created from a nested data schema (so will be a struct)
   4. `aggregate` - The value will a casted value formed from multiple bits of data in the source.
 
+  ### Examples
 
+  See the guides for more in depth examples but below you can see how we create a schema
+  that will take a map of data and create a struct out of it. Given the following schema:
 
+      defmodule Sandwich do
+        require DataSchema
+
+        DataSchema.data_schema([
+          field: {:type, "the_type", &String.upcase/1},
+          list_of: {:fillings, "the_fillings", &(String.downcase(&1["name"]))}
+        ])
+      end
+
+      input_data = %{
+        "the_type" => "fake steak",
+        "the_fillings" => [
+          %{"name" => "fake stake", "good?" => true},
+          %{"name" => "SAUCE"},
+          %{"name" => "sweetcorn"},
+        ]
+      }
+
+      DataSchema.to_struct(input_data, Sandwich)
+      # outputs the following:
+      %Sandwich{
+        type: "FAKE STEAK",
+        fillings: ["fake stake", "sauce", "sweetcorn"],
+      }
   """
 
   @doc """
-  Defines a data schema with the provided fields. Uses the default DataSchema.MapAccessor
+  Defines a data schema with the provided fields. Uses the default `DataSchema.MapAccessor`
   as the accessor, meaning it will expect the source data to be an elixir map and will
   use `Map.get/2` to access the required values in the source data.
 
-  See data_schema/2 for more details.
+  See `DataSchema.data_schema/2` for more details on what fields should look like.
   """
   defmacro data_schema(fields) do
     quote do
@@ -58,20 +87,58 @@ defmodule DataSchema do
   can specify that a field be optional by passing the correct option in. See the Options
   section below for more.
 
+  ### Field Types
+
+  There are 4 kinds of struct fields we can have:
+
+  1. `field`     - The value will be a casted value from the source data.
+  2. `list_of`   - The value will be a list of casted values created from the source data.
+  3. `has_one`   - The value will be created from a nested data schema (so will be a struct)
+  4. `aggregate` - The value will a casted value formed from multiple bits of data in the source.
 
   ### Options
 
   Available options are:
 
     - `:optional?` - specifies whether or not the field in the struct should be included in
-    the @enforce_keys for the struct. By default all fields are required but you can mark
+    the `@enforce_keys` for the struct. By default all fields are required but you can mark
     them as optional by setting this to `true`.
 
+  ### Examples
 
+  See the guides for more in depth examples but below you can see how we create a schema
+  that will take a map of data and create a struct out of it. Given the following schema:
+
+      defmodule Sandwich do
+        require DataSchema
+
+        DataSchema.data_schema([
+          field: {:type, "the_type", &String.upcase/1},
+          list_of: {:fillings, "the_fillings", &(String.downcase(&1["name"]))}
+        ])
+      end
+
+      input_data = %{
+        "the_type" => "fake steak",
+        "the_fillings" => [
+          %{"name" => "fake stake", "good?" => true},
+          %{"name" => "SAUCE"},
+          %{"name" => "sweetcorn"},
+        ]
+      }
+
+      DataSchema.to_struct(input_data, Sandwich)
+      # outputs the following:
+      %Sandwich{
+        type: "FAKE STEAK",
+        fillings: ["fake stake", "sauce", "sweetcorn"],
+      }
   """
   defmacro data_schema(fields, data_accessor) do
     quote do
+      @doc false
       def __data_schema_fields, do: unquote(fields)
+      @doc false
       def __data_accessor, do: unquote(data_accessor)
 
       @enforce_keys Enum.reduce(
@@ -119,7 +186,7 @@ defmodule DataSchema do
 
   @doc """
   Accepts an data schema module and some source data and attempts to create the struct
-  defined in the schema from the source data.
+  defined in the schema from the source data recursively.
 
   Right now this takes a simple approach to creating the struct - whatever you return from
   a casting function will be set as the value of the struct field. You should raise if
@@ -127,11 +194,6 @@ defmodule DataSchema do
 
   That means we don't do anything to check at runtime that the type of the field is what
   you specified it should be.
-
-  In the future we could change this to collect errors or to return errors in the case of
-  failed casting. Additionally we do not enforce not null, so if you wish to raise when
-  a field is nil you should handle that in the casting function used.
-
 
   ### Examples
 
