@@ -1,6 +1,6 @@
 defmodule DataSchema.DataAccessBehaviour do
   @moduledoc """
-  Defines how `DataSchema.to_struct/2` should access data for each given field type.
+  Defines how `DataSchema.to_struct!/2` should access data for each given field type.
 
   When we create a struct defined by the schema we will visit each struct field in turn
   and attempt to extract values from the source data. You tell the schema _how_ to
@@ -47,7 +47,7 @@ defmodule DataSchema.DataAccessBehaviour do
         ], DataSchema.MapAccessor)
       end
 
-  When we call `DataSchema.to_struct/2` the functions in `DataSchema.MapAccessor` will be
+  When we call `DataSchema.to_struct!/2` the functions in `DataSchema.MapAccessor` will be
   used to access the data from the source.
 
   DataSchema ships with the above example (see `DataSchema.MapAccessor`) and you can use

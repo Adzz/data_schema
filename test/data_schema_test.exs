@@ -9,7 +9,7 @@ defmodule DataSchemaTest do
   defmodule Comment do
     import DataSchema, only: [data_schema: 1]
     data_schema(field: {:text, "text", DataSchema.String})
-    def cast(data), do: DataSchema.to_struct(data, __MODULE__)
+    def cast(data), do: DataSchema.to_struct!(data, __MODULE__)
   end
 
   defmodule BlogPost do
@@ -41,7 +41,7 @@ defmodule DataSchemaTest do
         "metadata" => %{"rating" => 0}
       }
 
-      blog = DataSchema.to_struct(input, BlogPost)
+      blog = DataSchema.to_struct!(input, BlogPost)
 
       assert blog == %DataSchemaTest.BlogPost{
                comments: [

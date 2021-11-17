@@ -13,7 +13,7 @@ defmodule DataSchemaMapTest do
     data_schema([field: {:text, "text", DataSchema.String}], DataSchema.MapAccessor)
 
     def cast(data) do
-      DataSchema.to_struct(data, __MODULE__)
+      DataSchema.to_struct!(data, __MODULE__)
     end
   end
 
@@ -59,9 +59,9 @@ defmodule DataSchemaMapTest do
     assert BlogPost.__data_accessor() == DataSchema.MapAccessor
   end
 
-  describe "to_struct/2" do
+  describe "to_struct!/2" do
     test "casts a :field" do
-      blog = DataSchema.to_struct(source_data(), BlogPost)
+      blog = DataSchema.to_struct!(source_data(), BlogPost)
 
       assert blog.__struct__ == DataSchemaMapTest.BlogPost
       assert blog.content == "This is a blog post"
@@ -78,14 +78,14 @@ defmodule DataSchemaMapTest do
     end
 
     test "aggregate field works too" do
-      blog = DataSchema.to_struct(source_data(), BlogPost)
+      blog = DataSchema.to_struct!(source_data(), BlogPost)
 
       assert blog.__struct__ == DataSchemaMapTest.BlogPost
       assert blog.post_datetime == ~N[2021-11-11 14:00:00]
     end
 
     test "casts all list_of fields" do
-      blog = DataSchema.to_struct(source_data(), BlogPost)
+      blog = DataSchema.to_struct!(source_data(), BlogPost)
 
       assert blog.__struct__ == DataSchemaMapTest.BlogPost
 
@@ -96,7 +96,7 @@ defmodule DataSchemaMapTest do
     end
 
     test "casts an embed_one field" do
-      blog = DataSchema.to_struct(source_data(), BlogPost)
+      blog = DataSchema.to_struct!(source_data(), BlogPost)
 
       assert blog.__struct__ == DataSchemaMapTest.BlogPost
 

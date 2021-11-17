@@ -74,7 +74,7 @@ defmodule Comment do
   ])
 
   def cast(data) do
-    DataSchema.to_struct(data, __MODULE__)
+    DataSchema.to_struct!(data, __MODULE__)
   end
 end
 
@@ -97,7 +97,7 @@ defmodule BlogPost do
 end
 ```
 
-Then to transform some input data into the desired struct we can call `DataSchema.to_struct/2` which works recursively to transform the input data into the struct defined by the schema.
+Then to transform some input data into the desired struct we can call `DataSchema.to_struct!/2` which works recursively to transform the input data into the struct defined by the schema.
 
 ```elixir
 source_data = %{
@@ -109,7 +109,7 @@ source_data = %{
   "metadata" => %{ "rating" => 0}
 }
 
-DataSchema.to_struct(source_data, BlogPost)
+DataSchema.to_struct!(source_data, BlogPost)
 # This will output the following:
 
 %BlogPost{
@@ -141,7 +141,7 @@ defmodule Comment do
   ], DataSchema.MapAccessor)
 
   def cast(data) do
-    DataSchema.to_struct(data, __MODULE__)
+    DataSchema.to_struct!(data, __MODULE__)
   end
 end
 
@@ -223,7 +223,7 @@ defmodule Comment do
   ])
 
   def cast(data) do
-    DataSchema.to_struct(data, __MODULE__)
+    DataSchema.to_struct!(data, __MODULE__)
   end
 end
 

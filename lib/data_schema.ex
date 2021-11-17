@@ -61,7 +61,7 @@ defmodule DataSchema do
         ]
       }
 
-      DataSchema.to_struct(input_data, Sandwich)
+      DataSchema.to_struct!(input_data, Sandwich)
       # outputs the following:
       %Sandwich{
         type: "FAKE STEAK",
@@ -127,7 +127,7 @@ defmodule DataSchema do
         ]
       }
 
-      DataSchema.to_struct(input_data, Sandwich)
+      DataSchema.to_struct!(input_data, Sandwich)
       # outputs the following:
       %Sandwich{
         type: "FAKE STEAK",
@@ -188,12 +188,13 @@ defmodule DataSchema do
   Accepts an data schema module and some source data and attempts to create the struct
   defined in the schema from the source data recursively.
 
-  Right now this takes a simple approach to creating the struct - whatever you return from
+  We essentially visit each field in the schema and extract the data the field points to
+  from the sauce data, passing it to the field's casting function before setting the
+  result of that as the value on the struct.
+
+  This function takes a simple approach to creating the struct - whatever you return from
   a casting function will be set as the value of the struct field. You should raise if
   you want casting to fail.
-
-  That means we don't do anything to check at runtime that the type of the field is what
-  you specified it should be.
 
   ### Examples
 
@@ -203,18 +204,19 @@ defmodule DataSchema do
         require DataSchema
 
         DataSchema.data_schema(
-          [field: {:a_rocket, "spice", & &1}],
-          MapAccessor
+          field: {:a_rocket, "spice", & &1}
         )
       end
 
-      DataSchema.to_struct(data, Foo)
+      DataSchema.to_struct!(data, Foo)
+      # => Outputs the following:
+      %Foo{a_rocket: "enables space travel"}
   """
-  def to_struct(data, %schema{}) do
-    to_struct(data, schema)
+  def to_struct!(data, %schema{}) do
+    to_struct!(data, schema)
   end
 
-  def to_struct(data, schema) do
+  def to_struct!(data, schema) do
     accessor = schema.__data_accessor()
 
     Enum.reduce(schema.__data_schema_fields(), struct(schema, %{}), fn
@@ -241,11 +243,11 @@ defmodule DataSchema do
         %{struct | field => call_cast_fn(cast_fn, accessor.field(data, path))}
 
       {:has_one, {field, path, cast_module, _opts}}, struct ->
-        value = to_struct(accessor.has_one(data, path), cast_module)
+        value = to_struct!(accessor.has_one(data, path), cast_module)
         %{struct | field => value}
 
       {:has_one, {field, path, cast_module}}, struct ->
-        value = to_struct(accessor.has_one(data, path), cast_module)
+        value = to_struct!(accessor.has_one(data, path), cast_module)
         %{struct | field => value}
 
       {:list_of, {field, path, cast_module, _opts}}, struct ->
@@ -255,6 +257,119 @@ defmodule DataSchema do
       {:list_of, {field, path, cast_module}}, struct ->
         relations = Enum.map(accessor.list_of(data, path), &call_cast_fn(cast_module, &1))
         %{struct | field => relations}
+    end)
+  end
+
+  # Note we should make a to_struct() that lets the accessor return a tuple and we can
+  # reduce_while, bail out with an error in the case of failure,
+
+  @doc """
+  """
+  def to_struct(data, %schema{}) do
+    to_struct(data, schema)
+  end
+
+  # There are two ways to do this we could let accessors return ok tuples and that would
+  # allow for bailing out if they error for some reason. Which would be an easy way to
+  # implement something like "This has to be in the source data" without raising.
+  # BUT that is hard to explain. In practice it's probably easier to handle that in casting
+  # and have the cast fns PM on nil. That would mean
+
+  # Also when casting we could have a :error / :ok convention so that we can bail out if
+  # casting fails with an error (o course then you gets ta thinking that we should collect
+  # errors then you have changesets). But yea do we need both.........??
+  def to_struct(data, schema) do
+    accessor = schema.__data_accessor()
+
+    Enum.reduce_while(schema.__data_schema_fields(), struct(schema, %{}), fn
+      {:aggregate, {field, %{} = paths, cast_fn, _opts}}, struct ->
+        values_map =
+          Map.new(paths, fn {key, path} ->
+            {key, accessor.aggregate(data, path)}
+          end)
+
+        case call_cast_fn(cast_fn, values_map) do
+          {:ok, value} -> {:cont, %{struct | field => value}}
+          {:error, _} = error -> {:halt, error}
+          :error -> {:hatl, :error}
+        end
+
+      {:aggregate, {field, %{} = paths, cast_fn}}, struct ->
+        values_map =
+          Map.new(paths, fn {key, path} ->
+            {key, accessor.aggregate(data, path)}
+          end)
+
+        case call_cast_fn(cast_fn, values_map) do
+          {:ok, value} -> {:cont, %{struct | field => value}}
+          {:error, _} = error -> {:halt, error}
+          :error -> {:halt, :error}
+        end
+
+      {:field, {field, path, cast_fn, _opts}}, struct ->
+        case call_cast_fn(cast_fn, accessor.field(data, path)) do
+          {:ok, value} -> {:cont, %{struct | field => value}}
+          {:error, _} = error -> {:halt, error}
+          :error -> {:halt, :error}
+        end
+
+      {:field, {field, path, cast_fn}}, struct ->
+        case call_cast_fn(cast_fn, accessor.field(data, path)) do
+          {:ok, value} -> {:cont, %{struct | field => value}}
+          {:error, _} = error -> {:halt, error}
+          :error -> {:halt, :error}
+        end
+
+      {:has_one, {field, path, cast_module, _opts}}, struct ->
+        value = to_struct(accessor.has_one(data, path), cast_module)
+        %{struct | field => value}
+
+      {:has_one, {field, path, cast_module}}, struct ->
+        value = to_struct(accessor.has_one(data, path), cast_module)
+        %{struct | field => value}
+
+      {:list_of, {field, path, cast_module, _opts}}, struct ->
+        accessor.list_of(data, path)
+        |> Enum.reduce_while([], fn datum, acc ->
+          case call_cast_fn(cast_module, datum) do
+            {:ok, value} -> {:cont, [value | acc]}
+            {:error, _} = error -> {:halt, error}
+            :error -> {:halt, :error}
+          end
+        end)
+        |> case do
+          {:error, _} = error ->
+            {:halt, error}
+
+          :error ->
+            {:halt, :error}
+
+          relations when is_list(relations) ->
+            {:cont, %{struct | field => :lists.reverse(relations)}}
+        end
+
+      {:list_of, {field, path, cast_module}}, struct ->
+        accessor.list_of(data, path)
+        |> Enum.reduce_while([], fn datum, acc ->
+          case call_cast_fn(cast_module, datum) do
+            {:ok, value} -> {:cont, [value | acc]}
+            {:error, _} = error -> {:halt, error}
+            :error -> {:halt, :error}
+          end
+        end)
+        |> case do
+          {:error, _} = error ->
+            {:halt, error}
+
+          :error ->
+            {:halt, :error}
+
+          relations when is_list(relations) ->
+            {:cont, %{struct | field => :lists.reverse(relations)}}
+        end
+
+        # relations = Enum.map(accessor.list_of(data, path), &call_cast_fn(cast_module, &1))
+        # %{struct | field => relations}
     end)
   end
 

@@ -13,7 +13,7 @@ defmodule DataSchema.MapTest do
     map_schema(field: {:text, "text", DataSchema.String})
 
     def cast(data) do
-      DataSchema.to_struct(data, __MODULE__)
+      DataSchema.to_struct!(data, __MODULE__)
     end
   end
 
@@ -61,7 +61,7 @@ defmodule DataSchema.MapTest do
         "metadata" => %{"rating" => 0}
       }
 
-      blog = DataSchema.to_struct(input, BlogPost)
+      blog = DataSchema.to_struct!(input, BlogPost)
 
       assert blog == %DataSchema.MapTest.BlogPost{
                comments: [

@@ -13,7 +13,7 @@ defmodule DataSchemaXmlTest do
       XpathAccessor
     )
 
-    def cast(xmerl), do: DataSchema.to_struct(xmerl, __MODULE__)
+    def cast(xmerl), do: DataSchema.to_struct!(xmerl, __MODULE__)
   end
 
   defmodule Salad do
@@ -24,7 +24,7 @@ defmodule DataSchemaXmlTest do
       XpathAccessor
     )
 
-    def cast(xmerl), do: DataSchema.to_struct(xmerl, __MODULE__)
+    def cast(xmerl), do: DataSchema.to_struct!(xmerl, __MODULE__)
   end
 
   defmodule Sauce do
@@ -106,16 +106,16 @@ defmodule DataSchemaXmlTest do
            ]
   end
 
-  describe "to_struct/2" do
+  describe "to_struct!/2" do
     test "casts a :field" do
-      burger = DataSchema.to_struct(xml(), SteamedHam)
+      burger = DataSchema.to_struct!(xml(), SteamedHam)
 
       assert burger.__struct__ == DataSchemaXmlTest.SteamedHam
       assert burger.type == "MEDIUM RARE"
     end
 
     test "casts all list_of fields" do
-      burger = DataSchema.to_struct(xml(), SteamedHam)
+      burger = DataSchema.to_struct!(xml(), SteamedHam)
 
       assert burger.__struct__ == DataSchemaXmlTest.SteamedHam
 
@@ -128,7 +128,7 @@ defmodule DataSchemaXmlTest do
     end
 
     test "casts an embed_one field" do
-      burger = DataSchema.to_struct(xml(), SteamedHam)
+      burger = DataSchema.to_struct!(xml(), SteamedHam)
 
       assert burger.__struct__ == DataSchemaXmlTest.SteamedHam
 
