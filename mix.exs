@@ -60,7 +60,9 @@ defmodule DataSchema.MixProject do
       source_url: @source_url,
       skip_undefined_reference_warnings_on: ["CHANGELOG.md"],
       extras: [
-        "guides/introduction/Getting Started.md"
+        "guides/introduction/Getting Started.md",
+        "guides/introduction/Transforming XML with XML schemas.md",
+        "guides/introduction/Stopping to_struct when there is an error.md"
       ],
       groups_for_extras: [
         Introduction: ~r/guides\/introduction\/.?/
