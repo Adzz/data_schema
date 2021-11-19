@@ -5,6 +5,6 @@ defmodule DataSchema.String do
 
   # Nil is a sticking point..... Do we guard against it? Allow it? HAve another
   # &Non.null(String, &1) ?
-  def cast(string) when is_binary(string), do: string
-  def cast(string), do: to_string(string)
+  def cast(string) when is_binary(string), do: {:ok, string}
+  def cast(string), do: {:ok, to_string(string)}
 end

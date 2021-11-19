@@ -3,35 +3,42 @@ defmodule DataSchemaXmlTest do
 
   use ExUnit.Case, async: true
 
+  def to_upcase(s), do: {:ok, String.upcase(s)}
+
   defmodule Cheese do
     require DataSchema
 
     DataSchema.data_schema(
       [
-        field: {:mouldy?, "./@Mouldy", fn "true" -> true end}
+        field: {:mouldy?, "./@Mouldy", fn "true" -> {:ok, true} end}
       ],
       XpathAccessor
     )
 
-    def cast(xmerl), do: DataSchema.to_struct!(xmerl, __MODULE__)
+    def cast(xmerl), do: {:ok, DataSchema.to_struct(xmerl, __MODULE__)}
   end
 
   defmodule Salad do
     require DataSchema
 
     DataSchema.data_schema(
-      [field: {:name, "./@Name", & &1}, list_of: {:cheese_slices, "./Cheese", Cheese}],
+      [
+        field: {:name, "./@Name", &{:ok, &1}},
+        list_of: {:cheese_slices, "./Cheese", Cheese}
+      ],
+      # This should be a module attr that we get somehow. rather than passing to
+      # the schema function.
       XpathAccessor
     )
 
-    def cast(xmerl), do: DataSchema.to_struct!(xmerl, __MODULE__)
+    def cast(xmerl), do: {:ok, DataSchema.to_struct(xmerl, __MODULE__)}
   end
 
   defmodule Sauce do
     require DataSchema
 
-    DataSchema.data_schema([field: {:name, "./@Name", & &1}], XpathAccessor)
-    def cast(xmerl), do: DataSchema.to_struct!(xmerl, __MODULE__)
+    DataSchema.data_schema([field: {:name, "./@Name", &{:ok, &1}}], XpathAccessor)
+    def cast(xmerl), do: {:ok, DataSchema.to_struct(xmerl, __MODULE__)}
   end
 
   defmodule SteamedHam do
@@ -39,7 +46,7 @@ defmodule DataSchemaXmlTest do
     @datetime_fields %{date: "./ReadyDate/text()", time: "./ReadyTime/text()"}
     DataSchema.data_schema(
       [
-        field: {:type, "./Type/text()", &String.upcase/1},
+        field: {:type, "./Type/text()", &DataSchemaXmlTest.to_upcase(&1)},
         list_of: {:salads, "./Salads/Salad", Salad},
         has_one: {:sauce, "./Sauce", Sauce},
         aggregate: {:ready_datetime, @datetime_fields, &__MODULE__.datetime/1}
@@ -50,7 +57,7 @@ defmodule DataSchemaXmlTest do
     def datetime(%{date: date, time: time}) do
       date = Date.from_iso8601!(date)
       time = Time.from_iso8601!(time)
-      DateTime.new!(date, time)
+      DateTime.new(date, time)
     end
   end
 
@@ -59,7 +66,7 @@ defmodule DataSchemaXmlTest do
 
     DataSchema.data_schema(
       [
-        field: {:type, "./Type/text()", &String.upcase/1, optional?: true},
+        field: {:type, "./Type/text()", &DataSchemaXmlTest.to_upcase/1, optional?: true},
         list_of: {:salads, "./Salads/Salad", Salad, optional?: true},
         has_one: {:sauce, "./Sauce", Sauce, optional?: true}
       ],
@@ -96,7 +103,7 @@ defmodule DataSchemaXmlTest do
 
   test "fields are added as a secret fn" do
     assert SteamedHam.__data_schema_fields() == [
-             field: {:type, "./Type/text()", &String.upcase/1},
+             field: {:type, "./Type/text()", &DataSchemaXmlTest.to_upcase/1},
              list_of: {:salads, "./Salads/Salad", DataSchemaXmlTest.Salad},
              has_one: {:sauce, "./Sauce", DataSchemaXmlTest.Sauce},
              aggregate: {
@@ -107,16 +114,16 @@ defmodule DataSchemaXmlTest do
            ]
   end
 
-  describe "to_struct!/2" do
+  describe "to_struct/2" do
     test "casts a :field" do
-      burger = DataSchema.to_struct!(xml(), SteamedHam)
+      burger = DataSchema.to_struct(xml(), SteamedHam)
 
       assert burger.__struct__ == DataSchemaXmlTest.SteamedHam
       assert burger.type == "MEDIUM RARE"
     end
 
     test "casts all list_of fields" do
-      burger = DataSchema.to_struct!(xml(), SteamedHam)
+      burger = DataSchema.to_struct(xml(), SteamedHam)
 
       assert burger.__struct__ == DataSchemaXmlTest.SteamedHam
 
@@ -129,7 +136,7 @@ defmodule DataSchemaXmlTest do
     end
 
     test "casts an embed_one field" do
-      burger = DataSchema.to_struct!(xml(), SteamedHam)
+      burger = DataSchema.to_struct(xml(), SteamedHam)
 
       assert burger.__struct__ == DataSchemaXmlTest.SteamedHam
 

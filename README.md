@@ -64,19 +64,23 @@ defmodule DraftPost do
   import DataSchema, only: [data_schema: 1]
 
   data_schema([
-    field: {:content, "content", &to_string/1}
+    field: {:content, "content", &{:ok, to_string(&1)}}
   ])
+
+  def cast(data) do
+    {:ok, DataSchema.to_struct(data, __MODULE__)}
+  end
 end
 
 defmodule Comment do
   import DataSchema, only: [data_schema: 1]
 
   data_schema([
-    field: {:text, "text", &to_string/1}
+    field: {:text, "text", &{:ok, to_string(&1)}}
   ])
 
   def cast(data) do
-    DataSchema.to_struct!(data, __MODULE__)
+    {:ok, DataSchema.to_struct(data, __MODULE__)}
   end
 end
 
@@ -84,7 +88,7 @@ defmodule BlogPost do
   import DataSchema, only: [data_schema: 1]
 
   data_schema([
-    field: {:content, "content", &to_string/1},
+    field: {:content, "content", &{:ok, to_string(&1)}},
     list_of: {:comments, "comments", Comment},
     has_one: {:draft, "draft", DraftPost},
     aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1},
@@ -93,13 +97,12 @@ defmodule BlogPost do
   def to_datetime(%{date: date, time: time}) do
     date = Date.from_iso8601!(date)
     time = Time.from_iso8601!(time)
-    {:ok, datetime} = NaiveDateTime.new(date, time)
-    datetime
+    NaiveDateTime.new(date, time)
   end
 end
 ```
 
-Then to transform some input data into the desired struct we can call `DataSchema.to_struct!/2` which works recursively to transform the input data into the struct defined by the schema.
+Then to transform some input data into the desired struct we can call `DataSchema.to_struct/2` which works recursively to transform the input data into the struct defined by the schema.
 
 ```elixir
 source_data = %{
@@ -111,7 +114,7 @@ source_data = %{
   "metadata" => %{ "rating" => 0}
 }
 
-DataSchema.to_struct!(source_data, BlogPost)
+DataSchema.to_struct(source_data, BlogPost)
 # This will output the following:
 
 %BlogPost{
@@ -131,19 +134,23 @@ defmodule DraftPost do
   import DataSchema, only: [data_schema: 2]
 
   data_schema([
-    field: {:content, "content", &to_string/1}
+    field: {:content, "content", &{:ok, to_string(&1)}}
   ], DataSchema.MapAccessor)
+
+  def cast(data) do
+    {:ok, DataSchema.to_struct(data, __MODULE__)}
+  end
 end
 
 defmodule Comment do
   import DataSchema, only: [data_schema: 2]
 
   data_schema([
-    field: {:text, "text", &to_string/1}
+    field: {:text, "text", &{:ok, to_string(&1)}}
   ], DataSchema.MapAccessor)
 
   def cast(data) do
-    DataSchema.to_struct!(data, __MODULE__)
+    {:ok, DataSchema.to_struct(data, __MODULE__)}
   end
 end
 
@@ -151,7 +158,7 @@ defmodule BlogPost do
   import DataSchema, only: [data_schema: 2]
 
   data_schema([
-    field: {:content, "content", &to_string/1},
+    field: {:content, "content", &{:ok, to_string(&1)}},
     list_of: {:comments, "comments", Comment},
     has_one: {:draft, "draft", DraftPost},
     aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1},
@@ -160,8 +167,7 @@ defmodule BlogPost do
   def to_datetime(%{date: date, time: time}) do
     date = Date.from_iso8601!(date)
     time = Time.from_iso8601!(time)
-    {:ok, datetime} = NaiveDateTime.new(date, time)
-    datetime
+    NaiveDateTime.new(date, time)
   end
 end
 ```
@@ -213,19 +219,23 @@ defmodule DraftPost do
   import DataSchema.Map, only: [map_schema: 1]
 
   map_schema([
-    field: {:content, "content", &to_string/1}
+    field: {:content, "content", &{:ok, to_string(&1)}}
   ])
+
+  def cast(data) do
+    {:ok, DataSchema.to_struct(data, __MODULE__)}
+  end
 end
 
 defmodule Comment do
   import DataSchema.Map, only: [map_schema: 1]
 
   map_schema([
-    field: {:text, "text", &to_string/1}
+    field: {:text, "text", &{:ok, to_string(&1)}}
   ])
 
   def cast(data) do
-    DataSchema.to_struct!(data, __MODULE__)
+    {:ok, DataSchema.to_struct(data, __MODULE__)}
   end
 end
 
@@ -233,7 +243,7 @@ defmodule BlogPost do
   import DataSchema.Map, only: [map_schema: 1]
 
   map_schema([
-    field: {:content, "content", &to_string/1},
+    field: {:content, "content", &{:ok, to_string(&1)}},
     list_of: {:comments, "comments", Comment},
     has_one: {:draft, "draft", DraftPost},
     aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1},
@@ -242,8 +252,7 @@ defmodule BlogPost do
   def to_datetime(%{date: date_string, time: time_string}) do
     date = Date.from_iso8601!(date_string)
     time = Time.from_iso8601!(time_string)
-    {:ok, datetime} = NaiveDateTime.new(date, time)
-    datetime
+    NaiveDateTime.new(date, time)
   end
 end
 ```
@@ -316,19 +325,23 @@ defmodule DraftPost do
   import DataSchema.Xpath, only: [xpath_schema: 1]
 
   xpath_schema([
-    field: {:content, "./Content/text()", &to_string/1}
+    field: {:content, "./Content/text()", &{:ok, to_string(&1)}}
   ])
+
+  def cast(data) do
+    {:ok, DataSchema.to_struct(data, __MODULE__)}
+  end
 end
 
 defmodule Comment do
   import DataSchema.Xpath, only: [xpath_schema: 1]
 
   xpath_schema([
-    field: {:text, "./text()", &to_string/1}
+    field: {:text, "./text()", &{:ok, to_string(&1)}}
   ])
 
   def cast(data) do
-    DataSchema.to_struct!(data, __MODULE__)
+    {:ok, DataSchema.to_struct(data, __MODULE__)}
   end
 end
 
@@ -336,7 +349,7 @@ defmodule BlogPost do
   import DataSchema.Xpath, only: [xpath_schema: 1]
 
   xpath_schema([
-    field: {:content, "/Blog/Content/text()", &to_string/1},
+    field: {:content, "/Blog/Content/text()", &{:ok, to_string(&1)}},
     list_of: {:comments, "//Comment", Comment},
     has_one: {:draft, "/Blog/Draft", DraftPost},
     aggregate: {:post_datetime, %{date: "/Blog/@date", time: "/Blog/@time"}, &BlogPost.to_datetime/1},
@@ -345,8 +358,7 @@ defmodule BlogPost do
   def to_datetime(%{date: date_string, time: time_string}) do
     date = Date.from_iso8601!(date_string)
     time = Time.from_iso8601!(time_string)
-    {:ok, datetime} = NaiveDateTime.new(date, time)
-    datetime
+    NaiveDateTime.new(date, time)
   end
 end
 ```
@@ -367,7 +379,7 @@ source_data = """
 </Blog>
 """
 
-DataSchema.to_struct!(source_data, BlogPost)
+DataSchema.to_struct(source_data, BlogPost)
 
 # This will output:
 

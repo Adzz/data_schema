@@ -11,7 +11,7 @@ defmodule DataSchema.Map do
         import DataSchema.Map, only: [map_schema: 2]
 
         map_schema([
-          field: {:name, "name", &to_string/1}
+          field: {:name, "name", &{:ok, to_string(&1)}}
         ])
       end
 
@@ -21,7 +21,7 @@ defmodule DataSchema.Map do
         import DataSchema, only: [data_schema: 2]
 
         data_schema([
-          field: {:name, "name", &to_string/1}
+          field: {:name, "name", &{:ok, to_string(&1)}}
         ], MapAccessor)
       end
 

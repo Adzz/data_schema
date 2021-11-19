@@ -1,8 +1,8 @@
 # Stopping to_struct when there is an error
 
-There are two ways to create a struct from a schema `DataSchema.to_struct!/2` and `DataSchema.to_struct/2`. The crucial difference is that with the latter you can have your casting functions return an `:error` or an error tuple and the creation of the struct will halt and the error will be returned.
+There are two ways to create a struct from a schema `DataSchema.to_struct/2` and `DataSchema.to_struct/2`. The crucial difference is that with the latter you can have your casting functions return an `:error` or an error tuple and the creation of the struct will halt and the error will be returned.
 
-In contrast `DataSchema.to_struct!` will always put whatever is returned from the casting functions into the struct so the only way to fail is to raise an error in the casting function.
+In contrast `DataSchema.to_struct` will always put whatever is returned from the casting functions into the struct so the only way to fail is to raise an error in the casting function.
 
 Contrast the following approaches:
 
@@ -18,9 +18,8 @@ defmodule BlagPost do
 
   def to_datetime(%{date: date_string, time: time_string}) do
     with {:date, {:ok, date}} <- {:date, Date.from_iso8601(date_string)},
-         {:time, {:ok, time}} <- {:time, Time.from_iso8601(time_string)},
-         {:ok, datetime} <- NaiveDateTime.new(date, time) do
-      datetime
+         {:time, {:ok, time}} <- {:time, Time.from_iso8601(time_string)} do
+          NaiveDateTime.new(date, time)
     else
       {:date, {:error, _}} -> {:error, "Date is invalid: #{inspect(date_string)}"}
       {:time, {:error, _}} -> {:error, "Time is invalid: #{inspect(time_string)}"}
@@ -37,7 +36,7 @@ DataSchema.to_struct(input, BlagPost)
 # => {:error, "Date is invalid: \"not a date\""}
 ```
 
-### `DataSchema.to_struct!/2`
+### `DataSchema.to_struct/2`
 
 ```elixir
 defmodule BlogPost do
@@ -50,8 +49,7 @@ defmodule BlogPost do
   def to_datetime(%{date: date_string, time: time_string}) do
     date = Date.from_iso8601!(date_string)
     time = Time.from_iso8601!(time_string)
-    {:ok, datetime} = NaiveDateTime.new(date, time)
-    datetime
+    NaiveDateTime.new(date, time)
   end
 end
 

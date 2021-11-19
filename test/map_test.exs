@@ -7,7 +7,7 @@ defmodule DataSchema.MapTest do
     map_schema(field: {:content, "content", DataSchema.String})
 
     def cast(data) do
-      DataSchema.to_struct!(data, __MODULE__)
+      {:ok, DataSchema.to_struct(data, __MODULE__)}
     end
   end
 
@@ -17,7 +17,7 @@ defmodule DataSchema.MapTest do
     map_schema(field: {:text, "text", DataSchema.String})
 
     def cast(data) do
-      DataSchema.to_struct!(data, __MODULE__)
+      {:ok, DataSchema.to_struct(data, __MODULE__)}
     end
   end
 
@@ -34,8 +34,7 @@ defmodule DataSchema.MapTest do
     def to_datetime(%{date: date_string, time: time_string}) do
       date = Date.from_iso8601!(date_string)
       time = Time.from_iso8601!(time_string)
-      {:ok, datetime} = NaiveDateTime.new(date, time)
-      datetime
+      NaiveDateTime.new(date, time)
     end
   end
 
@@ -65,7 +64,7 @@ defmodule DataSchema.MapTest do
         "metadata" => %{"rating" => 0}
       }
 
-      blog = DataSchema.to_struct!(input, BlogPost)
+      blog = DataSchema.to_struct(input, BlogPost)
 
       assert blog == %DataSchema.MapTest.BlogPost{
                comments: [

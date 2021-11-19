@@ -72,8 +72,8 @@ defmodule DataSchemaTest do
     end
   end
 
-# ============================== to_struct/2==============================================
-# no-options.
+  # ============================== to_struct/2==============================================
+  # no-options.
   defmodule DaftPost do
     import DataSchema, only: [data_schema: 1]
     data_schema(field: {:content, "content", &{:ok, to_string(&1)}})
@@ -166,5 +166,5 @@ defmodule DataSchemaTest do
     end
   end
 
-# with options...
+  # with options...
 end

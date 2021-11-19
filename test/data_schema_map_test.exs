@@ -7,7 +7,7 @@ defmodule DataSchemaMapTest do
     data_schema([field: {:content, "content", DataSchema.String}], DataSchema.MapAccessor)
 
     def cast(data) do
-      DataSchema.to_struct!(data, __MODULE__)
+      {:ok, DataSchema.to_struct(data, __MODULE__)}
     end
   end
 
@@ -17,7 +17,7 @@ defmodule DataSchemaMapTest do
     data_schema([field: {:text, "text", DataSchema.String}], DataSchema.MapAccessor)
 
     def cast(data) do
-      DataSchema.to_struct!(data, __MODULE__)
+      {:ok, DataSchema.to_struct(data, __MODULE__)}
     end
   end
 
@@ -37,8 +37,7 @@ defmodule DataSchemaMapTest do
     def to_datetime(%{date: date_string, time: time_string}) do
       date = Date.from_iso8601!(date_string)
       time = Time.from_iso8601!(time_string)
-      {:ok, datetime} = NaiveDateTime.new(date, time)
-      datetime
+      NaiveDateTime.new(date, time)
     end
   end
 
@@ -65,7 +64,7 @@ defmodule DataSchemaMapTest do
 
   describe "to_struct!/2" do
     test "casts a :field" do
-      blog = DataSchema.to_struct!(source_data(), BlogPost)
+      blog = DataSchema.to_struct(source_data(), BlogPost)
 
       assert blog.__struct__ == DataSchemaMapTest.BlogPost
       assert blog.content == "This is a blog post"
@@ -82,14 +81,14 @@ defmodule DataSchemaMapTest do
     end
 
     test "aggregate field works too" do
-      blog = DataSchema.to_struct!(source_data(), BlogPost)
+      blog = DataSchema.to_struct(source_data(), BlogPost)
 
       assert blog.__struct__ == DataSchemaMapTest.BlogPost
       assert blog.post_datetime == ~N[2021-11-11 14:00:00]
     end
 
     test "casts all list_of fields" do
-      blog = DataSchema.to_struct!(source_data(), BlogPost)
+      blog = DataSchema.to_struct(source_data(), BlogPost)
 
       assert blog.__struct__ == DataSchemaMapTest.BlogPost
 
@@ -100,7 +99,7 @@ defmodule DataSchemaMapTest do
     end
 
     test "casts an embed_one field" do
-      blog = DataSchema.to_struct!(source_data(), BlogPost)
+      blog = DataSchema.to_struct(source_data(), BlogPost)
 
       assert blog.__struct__ == DataSchemaMapTest.BlogPost
 

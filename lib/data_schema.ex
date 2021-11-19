@@ -11,7 +11,7 @@ defmodule DataSchema do
         import DataSchema, only: [data_schema: 1]
 
         data_schema([
-          field: {:name, "name", &to_string/1}
+          field: {:name, "name", &{:ok, to_string(&1)}}
         ])
       end
 
@@ -64,8 +64,8 @@ defmodule DataSchema do
         require DataSchema
 
         DataSchema.data_schema([
-          field: {:type, "the_type", &String.upcase/1},
-          list_of: {:fillings, "the_fillings", &(String.downcase(&1["name"]))}
+          field: {:type, "the_type", &{:ok, String.upcase(&1)}},
+          list_of: {:fillings, "the_fillings", &({:ok, String.downcase(&1["name"])})}
         ])
       end
 
@@ -78,7 +78,7 @@ defmodule DataSchema do
         ]
       }
 
-      DataSchema.to_struct!(input_data, Sandwich)
+      DataSchema.to_struct(input_data, Sandwich)
       # outputs the following:
       %Sandwich{
         type: "FAKE STEAK",
@@ -126,7 +126,7 @@ defmodule DataSchema do
         require DataSchema
 
         DataSchema.data_schema([
-          field: {:type, "the_type", &String.upcase/1, optional?: true},
+          field: {:type, "the_type", &{:ok, String.upcase(&1)}, optional?: true},
         ])
       end
 
@@ -139,8 +139,8 @@ defmodule DataSchema do
         require DataSchema
 
         DataSchema.data_schema([
-          field: {:type, "the_type", &String.upcase/1},
-          list_of: {:fillings, "the_fillings", &(String.downcase(&1["name"]))}
+          field: {:type, "the_type", &{:ok, String.upcase.(&1)}},
+          list_of: {:fillings, "the_fillings", &({:ok, String.downcase(&1["name"])})}
         ])
       end
 
@@ -153,7 +153,7 @@ defmodule DataSchema do
         ]
       }
 
-      DataSchema.to_struct!(input_data, Sandwich)
+      DataSchema.to_struct(input_data, Sandwich)
       # outputs the following:
       %Sandwich{
         type: "FAKE STEAK",
@@ -210,81 +210,34 @@ defmodule DataSchema do
     end
   end
 
-  @doc """
-  Accepts an data schema module and some source data and attempts to create the struct
-  defined in the schema from the source data recursively.
+  # @doc """
+  # Accepts an data schema module and some source data and attempts to create the struct
+  # defined in the schema from the source data recursively.
 
-  We essentially visit each field in the schema and extract the data the field points to
-  from the sauce data, passing it to the field's casting function before setting the
-  result of that as the value on the struct.
+  # We essentially visit each field in the schema and extract the data the field points to
+  # from the sauce data, passing it to the field's casting function before setting the
+  # result of that as the value on the struct.
 
-  This function takes a simple approach to creating the struct - whatever you return from
-  a casting function will be set as the value of the struct field. You should raise if
-  you want casting to fail.
+  # This function takes a simple approach to creating the struct - whatever you return from
+  # a casting function will be set as the value of the struct field. You should raise if
+  # you want casting to fail.
 
-  ### Examples
+  # ### Examples
 
-      data = %{ "spice" => "enables space travel" }
+  #     data = %{ "spice" => "enables space travel" }
 
-      defmodule Foo do
-        require DataSchema
+  #     defmodule Foo do
+  #       require DataSchema
 
-        DataSchema.data_schema(
-          field: {:a_rocket, "spice", & &1}
-        )
-      end
+  #       DataSchema.data_schema(
+  #         field: {:a_rocket, "spice", &({:ok, &1})}
+  #       )
+  #     end
 
-      DataSchema.to_struct!(data, Foo)
-      # => Outputs the following:
-      %Foo{a_rocket: "enables space travel"}
-  """
-  def to_struct!(data, %schema{}) do
-    to_struct!(data, schema)
-  end
-
-  def to_struct!(data, schema) do
-    accessor = schema.__data_accessor()
-
-    Enum.reduce(schema.__data_schema_fields(), struct(schema, %{}), fn
-      {:aggregate, {field, %{} = paths, cast_fn, _opts}}, struct ->
-        values_map =
-          Map.new(paths, fn {key, path} ->
-            {key, accessor.aggregate(data, path)}
-          end)
-
-        %{struct | field => call_cast_fn(cast_fn, values_map)}
-
-      {:aggregate, {field, %{} = paths, cast_fn}}, struct ->
-        values_map =
-          Map.new(paths, fn {key, path} ->
-            {key, accessor.aggregate(data, path)}
-          end)
-
-        %{struct | field => call_cast_fn(cast_fn, values_map)}
-
-      {:field, {field, path, cast_fn, _opts}}, struct ->
-        %{struct | field => call_cast_fn(cast_fn, accessor.field(data, path))}
-
-      {:field, {field, path, cast_fn}}, struct ->
-        %{struct | field => call_cast_fn(cast_fn, accessor.field(data, path))}
-
-      {:has_one, {field, path, cast_fn, _opts}}, struct ->
-        value = call_cast_fn(cast_fn, accessor.has_one(data, path))
-        %{struct | field => value}
-
-      {:has_one, {field, path, cast_fn}}, struct ->
-        value = call_cast_fn(cast_fn, accessor.has_one(data, path))
-        %{struct | field => value}
-
-      {:list_of, {field, path, cast_module, _opts}}, struct ->
-        relations = Enum.map(accessor.list_of(data, path), &call_cast_fn(cast_module, &1))
-        %{struct | field => relations}
-
-      {:list_of, {field, path, cast_module}}, struct ->
-        relations = Enum.map(accessor.list_of(data, path), &call_cast_fn(cast_module, &1))
-        %{struct | field => relations}
-    end)
-  end
+  #     DataSchema.to_struct(data, Foo)
+  #     # => Outputs the following:
+  #     %Foo{a_rocket: "enables space travel"}
+  # """
 
   # Note we should make a to_struct() that lets the accessor return a tuple and we can
   # reduce_while, bail out with an error in the case of failure,
@@ -342,6 +295,7 @@ defmodule DataSchema do
           {:error, _} = error -> {:halt, error}
           :error -> {:halt, :error}
         end
+
       # can we generalize? Is apply a perf thing>
       # {field_type, {struct_key, path, cast_fn}}, struct ->
       #   case call_cast_fn(cast_fn, apply(accessor, field_type, [data, path])) do
@@ -352,7 +306,7 @@ defmodule DataSchema do
 
       {:field, {field, path, cast_fn}}, struct ->
         case call_cast_fn(cast_fn, accessor.field(data, path)) do
-          {:ok, value} -> {:cont, %{struct | field => value }}
+          {:ok, value} -> {:cont, %{struct | field => value}}
           {:error, _} = error -> {:halt, error}
           :error -> {:halt, :error}
         end
