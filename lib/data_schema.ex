@@ -29,6 +29,23 @@ defmodule DataSchema do
       #    path to data in the source    |
       #                           casting function
 
+  Depending on your input data type the path pointing to a value in it may need to be
+  interpreted differently. For our example of a map input type, the "path" is really just
+  a key on that input map. But there is still flexibility in how we use that key to access
+  the value; we could use `Map.get/2` or `Map.fetch/2` for example. Additionally, for
+  different input data types what the path looks like and what it means for how you access
+  data can be different. Let's say your input data type was XML your path could be ".//MyNode",
+  ie could be an xpath. In which case what you do with that xpath is going to be different
+  from what you would do with a map key.
+
+  DataSchema allows for different schemas to handle different input types AND allows for
+  the same input type to be handled differently in different schemas.
+
+  Finally when creating the struct we can choose to stop as soon as we find an error or to
+  simply put whatever is returned from a casting function into the struct we are making.
+  The latter approach encourages people to raise exceptions from their casting functions
+  to halt the creation of the struct.
+
   ### Field Types
 
   There are 4 kinds of struct fields we can have:
@@ -103,6 +120,15 @@ defmodule DataSchema do
     - `:optional?` - specifies whether or not the field in the struct should be included in
     the `@enforce_keys` for the struct. By default all fields are required but you can mark
     them as optional by setting this to `true`.
+
+  For example:
+      defmodule Sandwich do
+        require DataSchema
+
+        DataSchema.data_schema([
+          field: {:type, "the_type", &String.upcase/1, optional?: true},
+        ])
+      end
 
   ### Examples
 
@@ -242,12 +268,12 @@ defmodule DataSchema do
       {:field, {field, path, cast_fn}}, struct ->
         %{struct | field => call_cast_fn(cast_fn, accessor.field(data, path))}
 
-      {:has_one, {field, path, cast_module, _opts}}, struct ->
-        value = to_struct!(accessor.has_one(data, path), cast_module)
+      {:has_one, {field, path, cast_fn, _opts}}, struct ->
+        value = call_cast_fn(cast_fn, accessor.has_one(data, path))
         %{struct | field => value}
 
-      {:has_one, {field, path, cast_module}}, struct ->
-        value = to_struct!(accessor.has_one(data, path), cast_module)
+      {:has_one, {field, path, cast_fn}}, struct ->
+        value = call_cast_fn(cast_fn, accessor.has_one(data, path))
         %{struct | field => value}
 
       {:list_of, {field, path, cast_module, _opts}}, struct ->
@@ -278,6 +304,10 @@ defmodule DataSchema do
   # Also when casting we could have a :error / :ok convention so that we can bail out if
   # casting fails with an error (o course then you gets ta thinking that we should collect
   # errors then you have changesets). But yea do we need both.........??
+
+  # The question is also "how do we enforce not null" there is both "you can't create the
+  # struct with nil value" and there is the "you can never set it to nil". We can enforce
+  # the latter if someone always uses this to_struct to create the thing.
   def to_struct(data, schema) do
     accessor = schema.__data_accessor()
 
@@ -291,7 +321,7 @@ defmodule DataSchema do
         case call_cast_fn(cast_fn, values_map) do
           {:ok, value} -> {:cont, %{struct | field => value}}
           {:error, _} = error -> {:halt, error}
-          :error -> {:hatl, :error}
+          :error -> {:halt, :error}
         end
 
       {:aggregate, {field, %{} = paths, cast_fn}}, struct ->
@@ -312,28 +342,39 @@ defmodule DataSchema do
           {:error, _} = error -> {:halt, error}
           :error -> {:halt, :error}
         end
+      # can we generalize? Is apply a perf thing>
+      # {field_type, {struct_key, path, cast_fn}}, struct ->
+      #   case call_cast_fn(cast_fn, apply(accessor, field_type, [data, path])) do
+      #     {:ok, value} -> {:cont, %{struct | field => value}}
+      #     {:error, _} = error -> {:halt, error}
+      #     :error -> {:halt, :error}
+      #   end
 
       {:field, {field, path, cast_fn}}, struct ->
         case call_cast_fn(cast_fn, accessor.field(data, path)) do
-          {:ok, value} -> {:cont, %{struct | field => value}}
+          {:ok, value} -> {:cont, %{struct | field => value }}
           {:error, _} = error -> {:halt, error}
           :error -> {:halt, :error}
         end
 
       {:has_one, {field, path, cast_module, _opts}}, struct ->
-        case to_struct(accessor.has_one(data, path), cast_module) do
+        case call_cast_fn(cast_module, accessor.has_one(data, path)) do
           {:error, _} = error -> {:halt, error}
           :error -> {:halt, :error}
-          value -> {:cont, %{struct | field => value}}
+          {:ok, value} -> {:cont, %{struct | field => value}}
         end
 
       {:has_one, {field, path, cast_module}}, struct ->
-        case to_struct(accessor.has_one(data, path), cast_module) do
+        case call_cast_fn(cast_module, accessor.has_one(data, path)) do
           {:error, _} = error -> {:halt, error}
           :error -> {:halt, :error}
-          value -> {:cont, %{struct | field => value}}
+          {:ok, value} -> {:cont, %{struct | field => value}}
         end
 
+      # We could have access to :optional? here which allows for runtime validation that
+      # it exists or not. But default it should be needed. Or we just let casting handle it
+      # But given that we have optional as a thing we really need to continue to back it up here
+      # If you use it on a list then like it's a thing
       {:list_of, {field, path, cast_module, _opts}}, struct ->
         accessor.list_of(data, path)
         |> Enum.reduce_while([], fn datum, acc ->

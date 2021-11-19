@@ -170,22 +170,22 @@ defmodule DataSchema.MapAccessor do
   @behaviour DataSchema.DataAccessBehaviour
 
   @impl true
-  def field(data, field) do
+  def field(data = %{}, field) do
     Map.get(data, field)
   end
 
   @impl true
-  def list_of(data, field) do
+  def list_of(data = %{}, field) do
     Map.get(data, field)
   end
 
   @impl true
-  def has_one(data, field) do
+  def has_one(data = %{}, field) do
     Map.get(data, field)
   end
 
   @impl true
-  def aggregate(data, field) do
+  def aggregate(data = %{}, field) do
     Map.get(data, field)
   end
 end

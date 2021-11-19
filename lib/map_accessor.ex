@@ -8,36 +8,28 @@ defmodule DataSchema.MapAccessor do
   @impl true
   @doc """
   Accesses the source data using `Map.get/2` when a `:field` type is encountered during
-  struct creation.
+  struct creation. If the incoming data is not a map we will function clause error.
   """
-  def field(data, field) do
-    Map.get(data, field)
-  end
+  def field(data = %{}, field), do: Map.get(data, field)
 
   @impl true
   @doc """
   Accesses the source data using `Map.get/2` when a `:list_of` type is encountered during
   struct creation.
   """
-  def list_of(data, field) do
-    Map.get(data, field)
-  end
+  def list_of(data = %{}, field), do: Map.get(data, field)
 
   @impl true
   @doc """
   Accesses the source data using `Map.get/2` when a `:has_one` type is encountered during
   struct creation.
   """
-  def has_one(data, field) do
-    Map.get(data, field)
-  end
+  def has_one(data = %{}, field), do: Map.get(data, field)
 
   @impl true
   @doc """
   Accesses the source data using `Map.get/2` when an `:aggregate` type is encountered during
   struct creation.
   """
-  def aggregate(data, field) do
-    Map.get(data, field)
-  end
+  def aggregate(data = %{}, field), do: Map.get(data, field)
 end

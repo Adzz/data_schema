@@ -1,22 +1,25 @@
 defmodule DataSchemaTest do
   use ExUnit.Case, async: true
 
+  def to_stringg(x), do: {:ok, to_string(x)}
+
   defmodule DraftPost do
     import DataSchema, only: [data_schema: 1]
-    data_schema(field: {:content, "content", DataSchema.String})
+    data_schema(field: {:content, "content", &DataSchemaTest.to_stringg/1})
+    def cast(data), do: {:ok, DataSchema.to_struct(data, __MODULE__)}
   end
 
   defmodule Comment do
     import DataSchema, only: [data_schema: 1]
-    data_schema(field: {:text, "text", DataSchema.String})
-    def cast(data), do: DataSchema.to_struct!(data, __MODULE__)
+    data_schema(field: {:text, "text", &DataSchemaTest.to_stringg/1})
+    def cast(data), do: {:ok, DataSchema.to_struct(data, __MODULE__)}
   end
 
   defmodule BlogPost do
     import DataSchema, only: [data_schema: 1]
 
     data_schema(
-      field: {:content, "content", DataSchema.String},
+      field: {:content, "content", &DataSchemaTest.to_stringg/1},
       list_of: {:comments, "comments", Comment},
       has_one: {:draft, "draft", DraftPost},
       aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1}
@@ -25,8 +28,7 @@ defmodule DataSchemaTest do
     def to_datetime(%{date: date_string, time: time_string}) do
       date = Date.from_iso8601!(date_string)
       time = Time.from_iso8601!(time_string)
-      {:ok, datetime} = NaiveDateTime.new(date, time)
-      datetime
+      NaiveDateTime.new(date, time)
     end
   end
 
@@ -41,7 +43,7 @@ defmodule DataSchemaTest do
         "metadata" => %{"rating" => 0}
       }
 
-      blog = DataSchema.to_struct!(input, BlogPost)
+      blog = DataSchema.to_struct(input, BlogPost)
 
       assert blog == %DataSchemaTest.BlogPost{
                comments: [
@@ -60,7 +62,7 @@ defmodule DataSchemaTest do
 
     test "fields are added as a secret fn" do
       assert BlogPost.__data_schema_fields() == [
-               field: {:content, "content", DataSchema.String},
+               field: {:content, "content", &DataSchemaTest.to_stringg/1},
                list_of: {:comments, "comments", DataSchemaTest.Comment},
                has_one: {:draft, "draft", DataSchemaTest.DraftPost},
                aggregate:
@@ -70,19 +72,20 @@ defmodule DataSchemaTest do
     end
   end
 
-  # ============================== to_struct/2==============================================
-
+# ============================== to_struct/2==============================================
+# no-options.
   defmodule DaftPost do
     import DataSchema, only: [data_schema: 1]
-    data_schema(field: {:content, "content", &{:ok, DataSchema.String.cast(&1)}})
+    data_schema(field: {:content, "content", &{:ok, to_string(&1)}})
+    def cast(data), do: {:ok, DataSchema.to_struct(data, __MODULE__)}
   end
 
   defmodule BlagPost do
     import DataSchema, only: [data_schema: 1]
 
     data_schema(
-      field: {:content, "content", fn x -> {:ok, DataSchema.String.cast(x)} end},
-      list_of: {:comments, "comments", fn x -> {:ok, Comment.cast(x)} end},
+      field: {:content, "content", fn x -> {:ok, to_string(x)} end},
+      list_of: {:comments, "comments", Comment},
       has_one: {:draft, "draft", DaftPost},
       aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlagPost.to_datetime/1}
     )
@@ -101,7 +104,7 @@ defmodule DataSchemaTest do
 
   describe "to_struct/2" do
     # We need to test every combo of field failing really. like has_one fails. etc nested shit.
-    test "if a casting function returns an error we stop creating the struct and return the error" do
+    test "aggregate: if a casting function returns an error we stop creating the struct and return the error" do
       input = %{
         "content" => "This is a blog post",
         "comments" => [%{"text" => "This is a comment"}, %{"text" => "This is another comment"}],
@@ -115,5 +118,53 @@ defmodule DataSchemaTest do
 
       assert blog == {:error, "Date is invalid: \"not a date\""}
     end
+
+    defmodule FieldError do
+      import DataSchema, only: [data_schema: 1]
+      data_schema(field: {:thing, "thing", fn _ -> :error end})
+    end
+
+    test "errors on :field field stop and return the error " do
+      input = %{"thing" => "This is a blog post"}
+
+      blog = DataSchema.to_struct(input, FieldError)
+
+      assert blog == :error
+    end
+
+    defmodule Has do
+      import DataSchema, only: [data_schema: 1]
+      data_schema(field: {:integer, "int", fn x -> {:error, x} end})
+
+      def cast(nil), do: :error
+
+      def cast(data) do
+        {:ok, DataSchema.to_struct(data, __MODULE__)}
+      end
+    end
+
+    defmodule HasOneError do
+      import DataSchema, only: [data_schema: 1]
+      data_schema(has_one: {:thing, "thing", Has})
+    end
+
+    test "errors on :has_one" do
+      input = %{"thing" => nil}
+      blog = DataSchema.to_struct(input, HasOneError)
+      assert blog == :error
+    end
+
+    defmodule ListOfError do
+      import DataSchema, only: [data_schema: 1]
+      data_schema(list_of: {:thing, "thing", fn _ -> :error end})
+    end
+
+    test "errors on :list_of" do
+      input = %{"thing" => [%{}]}
+      blog = DataSchema.to_struct(input, ListOfError)
+      assert blog == :error
+    end
   end
+
+# with options...
 end

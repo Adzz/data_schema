@@ -31,6 +31,7 @@ defmodule DataSchemaXmlTest do
     require DataSchema
 
     DataSchema.data_schema([field: {:name, "./@Name", & &1}], XpathAccessor)
+    def cast(xmerl), do: DataSchema.to_struct!(xmerl, __MODULE__)
   end
 
   defmodule SteamedHam do

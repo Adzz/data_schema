@@ -5,6 +5,10 @@ defmodule DataSchema.MapTest do
     import DataSchema.Map, only: [map_schema: 1]
 
     map_schema(field: {:content, "content", DataSchema.String})
+
+    def cast(data) do
+      DataSchema.to_struct!(data, __MODULE__)
+    end
   end
 
   defmodule Comment do
