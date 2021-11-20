@@ -164,6 +164,22 @@ defmodule DataSchemaTest do
       blog = DataSchema.to_struct(input, ListOfError)
       assert blog == :error
     end
+
+    defmodule Many do
+      import DataSchema, only: [data_schema: 1]
+      data_schema(field: {:thing, "thing", fn _ -> :error end})
+    end
+
+    defmodule HasManyError do
+      import DataSchema, only: [data_schema: 1]
+      data_schema(has_many: {:things, "things", Many})
+    end
+
+    test "errors on has_many" do
+      input = %{"things" => [%{}]}
+      blog = DataSchema.to_struct(input, HasManyError)
+      assert blog == :error
+    end
   end
 
   # with options...

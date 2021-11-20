@@ -53,7 +53,9 @@ defmodule DataSchema do
   1. `field`     - The value will be a casted value from the source data.
   2. `list_of`   - The value will be a list of casted values created from the source data.
   3. `has_one`   - The value will be created from a nested data schema (so will be a struct)
-  4. `aggregate` - The value will a casted value formed from multiple bits of data in the source.
+  4. `has_many`  - The value will be created by casting a list of values into a data schema.
+  (You end up with a list of structs defined by the provided schema). Similar to has_many in ecto
+  5. `aggregate` - The value will a casted value formed from multiple bits of data in the source.
 
   ### Examples
 
@@ -111,7 +113,9 @@ defmodule DataSchema do
   1. `field`     - The value will be a casted value from the source data.
   2. `list_of`   - The value will be a list of casted values created from the source data.
   3. `has_one`   - The value will be created from a nested data schema (so will be a struct)
-  4. `aggregate` - The value will a casted value formed from multiple bits of data in the source.
+  4. `has_many`  - The value will be created by casting a list of values into a data schema.
+  (You end up with a list of structs defined by the provided schema). Similar to has_many in ecto
+  5. `aggregate` - The value will a casted value formed from multiple bits of data in the source.
 
   ### Options
 
@@ -119,7 +123,8 @@ defmodule DataSchema do
 
     - `:optional?` - specifies whether or not the field in the struct should be included in
     the `@enforce_keys` for the struct. By default all fields are required but you can mark
-    them as optional by setting this to `true`.
+    them as optional by setting this to `true`. This will also be checked when creating a
+    struct with `DataSchema.to_struct/2` returning an error if the required field is null.
 
   For example:
       defmodule Sandwich do
@@ -172,7 +177,7 @@ defmodule DataSchema do
                       [],
                       fn
                         # Validates the shape of the fields at compile time.
-                        {type, {_, _xpath, _cast_fn, _opts}}, acc
+                        {type, {_, _, _, _}}, acc
                         when type not in [:field, :has_one, :has_many, :aggregate, :list_of] ->
                           raise DataSchema.InvalidSchemaError,
                                 "Field #{inspect(type)} is not a valid field type.\n" <>
@@ -185,6 +190,40 @@ defmodule DataSchema do
                                 "Field #{inspect(type)} is not a valid field type.\n" <>
                                   "Check the docs in DataSchema for more " <>
                                   "information on how fields should be written."
+
+                        {type, {_, _, module, _}}, acc
+                        when type in [:has_one, :has_many] and not is_atom(module) ->
+                          message = """
+                          #{type} fields require a DataSchema module as their casting function:
+
+                              data_schema([
+                                has_one: {:foo, "path", Foo}
+                                #                       ^^
+                                # Should be a DataSchema module
+                              ])
+
+                          You provided the following as a schema: #{inspect(module)}.
+                          Ensure you haven't used the wrong field type.
+                          """
+
+                          raise DataSchema.InvalidSchemaError, message: message
+
+                        {type, {_, _, module}}, acc
+                        when type in [:has_one, :has_many] and not is_atom(module) ->
+                          message = """
+                          #{type} fields require a DataSchema module as their casting function:
+
+                              data_schema([
+                                has_one: {:foo, "path", Foo}
+                                #                       ^^
+                                # Should be a DataSchema module
+                              ])
+
+                          You provided the following as a schema: #{inspect(module)}.
+                          Ensure you haven't used the wrong field type.
+                          """
+
+                          raise DataSchema.InvalidSchemaError, message: message
 
                         {_, {field, _, _, opts}}, acc ->
                           # By default fields are required but they can be marked as optional.
@@ -203,8 +242,8 @@ defmodule DataSchema do
                       end
                     )
       defstruct Enum.map(unquote(fields), fn
-                  {_, {field, _xpath, _cast_fn}} -> field
-                  {_, {field, _xpath, _cast_fn, _opts}} -> field
+                  {_, {field, _, _}} -> field
+                  {_, {field, _, _, _}} -> field
                   _ -> raise DataSchema.InvalidSchemaError
                 end)
     end
@@ -250,13 +289,23 @@ defmodule DataSchema do
     to_struct(data, schema, opts)
   end
 
-  def to_struct(data, schema, _opts) do
+  def to_struct(data, schema, _opts) when is_atom(schema) do
+    if !function_exported?(schema, :__data_schema_fields, 0) do
+      raise "Provided schema is not a valid DataSchema: #{inspect(schema)}"
+    end
+
     # basically two different fns if we do collect errors. So we will come back to this
     # get fail fast working first.
     # collect_errors? = Keyword.get(opts, :collect_errors, false)
     accessor = schema.__data_accessor()
 
     Enum.reduce_while(schema.__data_schema_fields(), struct(schema, %{}), fn
+      # We have access to :optional? here which allows for runtime validation that
+      # it exists or not. But default it should be needed. The real question is should
+      # nullishness be set on the schema at compile time or per call to to_struct.
+      # changesets go for the latter in some ways because you can do whatever validations
+      # you want. But this approach makes it a schema level thing. I think that's fine
+      # though
       {:aggregate, {field, %{} = paths, cast_fn, _opts}}, struct ->
         # Should this be reduce_while? only if accessors return tuples....
         # and if they do how does collect errors factor in. Really they should error
@@ -277,18 +326,10 @@ defmodule DataSchema do
         aggregate(values_map, field, cast_fn, struct)
 
       {:field, {field, path, cast_fn, _opts}}, struct ->
-        case call_cast_fn(cast_fn, accessor.field(data, path)) do
-          {:ok, value} -> {:cont, %{struct | field => value}}
-          {:error, _} = error -> {:halt, error}
-          :error -> {:halt, :error}
-        end
+        field(accessor.field(data, path), field, cast_fn, struct)
 
       {:field, {field, path, cast_fn}}, struct ->
-        case call_cast_fn(cast_fn, accessor.field(data, path)) do
-          {:ok, value} -> {:cont, %{struct | field => value}}
-          {:error, _} = error -> {:halt, error}
-          :error -> {:halt, :error}
-        end
+        field(accessor.field(data, path), field, cast_fn, struct)
 
       {:has_one, {field, path, cast_module, _opts}}, struct ->
         has_one(accessor.has_one(data, path), field, cast_module, struct)
@@ -302,10 +343,6 @@ defmodule DataSchema do
       {:has_many, {field, path, cast_module}}, struct ->
         has_many(accessor.list_of(data, path), field, cast_module, struct)
 
-      # We could have access to :optional? here which allows for runtime validation that
-      # it exists or not. But default it should be needed. Or we just let casting handle it
-      # But given that we have optional as a thing we really need to continue to back it up here
-      # If you use it on a list then like it's a thing
       {:list_of, {field, path, cast_module, _opts}}, struct ->
         list_of(accessor.list_of(data, path), field, cast_module, struct)
 
@@ -327,6 +364,14 @@ defmodule DataSchema do
     end
   end
 
+  defp field(data, field, cast_fn, struct) do
+    case call_cast_fn(cast_fn, data) do
+      {:ok, value} -> {:cont, %{struct | field => value}}
+      {:error, _} = error -> {:halt, error}
+      :error -> {:halt, :error}
+    end
+  end
+
   defp has_one(data, field, cast_module, struct) do
     case to_struct(data, cast_module) do
       {:ok, value} -> {:cont, %{struct | field => value}}
@@ -335,11 +380,11 @@ defmodule DataSchema do
     end
   end
 
-  defp list_of(data, field, cast_module, struct) do
+  defp has_many(data, field, cast_module, struct) do
     data
     |> Enum.reduce_while([], fn datum, acc ->
-      case call_cast_fn(cast_module, datum) do
-        {:ok, value} -> {:cont, [value | acc]}
+      case to_struct(datum, cast_module) do
+        {:ok, struct} -> {:cont, [struct | acc]}
         {:error, _} = error -> {:halt, error}
         :error -> {:halt, :error}
       end
@@ -356,11 +401,11 @@ defmodule DataSchema do
     end
   end
 
-  defp has_many(data, field, cast_module, struct) do
+  defp list_of(data, field, cast_module, struct) do
     data
     |> Enum.reduce_while([], fn datum, acc ->
-      case to_struct(datum, cast_module) do
-        {:ok, struct} -> {:cont, [struct | acc]}
+      case call_cast_fn(cast_module, datum) do
+        {:ok, value} -> {:cont, [value | acc]}
         {:error, _} = error -> {:halt, error}
         :error -> {:halt, :error}
       end

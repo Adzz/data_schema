@@ -1,4 +1,7 @@
 defmodule XpathAccessor do
+  @moduledoc """
+  Just for testing but an example of what you could do if you are reading this.
+  """
   @behaviour DataSchema.DataAccessBehaviour
   import SweetXml, only: [sigil_x: 2]
 
@@ -25,23 +28,15 @@ defmodule XpathAccessor do
   end
 
   @impl true
+  def has_many(data, path) do
+    SweetXml.xpath(data, ~x"#{path}"l)
+  end
+
+  @impl true
   def aggregate(data, path) do
     SweetXml.xpath(data, ~x"#{path}"s)
   end
 end
-
-# We should add to the docs "if you want null checks do this"
-# def nullable(schema, nil), do: nil
-# def nullable(schema, value), do: schema.cast(value)
-
-# # for to_struct! ? ..... we shouldn't
-# def non_null(schema, nil), do: raise "nope"
-# def non_null(schema, value), do: schema.cast(value)
-
-# do we need two to_structs because it means different casting functions? and
-# therefore
-# different schemas which is a nightmare.
-# I think we only need to_struct/2 we can always raise after
 
 # We also wont to know about errors probably. Right now where we stop at the first error
 # we don't collect them but we probably should.
