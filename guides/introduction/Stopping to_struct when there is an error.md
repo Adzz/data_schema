@@ -4,7 +4,7 @@ When we create a struct from a schema `DataSchema.to_struct/2` a casting functio
 
 Each has its place and both are possible in DataSchema. Contrast the following approaches:
 
-### `DataSchema.to_struct/2`
+### `DataSchema.to_struct/3`
 
 ```elixir
 defmodule BlagPost do

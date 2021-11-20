@@ -151,7 +151,7 @@ defmodule DataSchemaTest do
       # input = %{"thing" => nil} needs to work for both cases.
       input = %{"thing" => %{}}
       blog = DataSchema.to_struct(input, HasOneError)
-      assert blog == {:error, nil}
+      assert blog == {:error, "non null field was found to be null!"}
     end
 
     defmodule ListOfError do
@@ -178,7 +178,7 @@ defmodule DataSchemaTest do
     test "errors on has_many" do
       input = %{"things" => [%{}]}
       blog = DataSchema.to_struct(input, HasManyError)
-      assert blog == :error
+      assert blog == {:error, "non null field was found to be null!"}
     end
   end
 

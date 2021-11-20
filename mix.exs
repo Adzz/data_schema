@@ -61,8 +61,9 @@ defmodule DataSchema.MixProject do
       skip_undefined_reference_warnings_on: ["CHANGELOG.md"],
       extras: [
         "guides/introduction/Getting Started.md",
-        "guides/introduction/Transforming XML with XML schemas.md",
-        "guides/introduction/Stopping to_struct when there is an error.md"
+        "guides/introduction/Transforming XML with XML schemas.md"
+        # do this when we implement the other.
+        # "guides/introduction/Stopping to_struct when there is an error.md"
       ],
       groups_for_extras: [
         Introduction: ~r/guides\/introduction\/.?/

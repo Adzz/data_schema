@@ -48,7 +48,7 @@ defmodule DataSchema do
 
   ### Field Types
 
-  There are 4 kinds of struct fields we can have:
+  There are 5 kinds of struct fields we can have:
 
   1. `field`     - The value will be a casted value from the source data.
   2. `list_of`   - The value will be a list of casted values created from the source data.
@@ -108,7 +108,7 @@ defmodule DataSchema do
 
   ### Field Types
 
-  There are 4 kinds of struct fields we can have:
+  There are 5 kinds of struct fields we can have:
 
   1. `field`     - The value will be a casted value from the source data.
   2. `list_of`   - The value will be a list of casted values created from the source data.
@@ -300,59 +300,146 @@ defmodule DataSchema do
     accessor = schema.__data_accessor()
 
     Enum.reduce_while(schema.__data_schema_fields(), struct(schema, %{}), fn
-      # We have access to :optional? here which allows for runtime validation that
-      # it exists or not. But default it should be needed. The real question is should
-      # nullishness be set on the schema at compile time or per call to to_struct.
-      # changesets go for the latter in some ways because you can do whatever validations
-      # you want. But this approach makes it a schema level thing. I think that's fine
-      # though
-      {:aggregate, {field, %{} = paths, cast_fn, _opts}}, struct ->
-        # Should this be reduce_while? only if accessors return tuples....
-        # and if they do how does collect errors factor in. Really they should error
-        # if not nil is a thing.
-        values_map =
-          Map.new(paths, fn {key, path} ->
-            {key, accessor.aggregate(data, path)}
-          end)
+      {field_type, {field, paths, cast_fn, field_opts}}, struct ->
+        nullable? = Keyword.get(field_opts, :optional?, false)
+        process_field({field_type, {field, paths, cast_fn}}, struct, nullable?, accessor, data)
 
-        aggregate(values_map, field, cast_fn, struct)
-
-      {:aggregate, {field, %{} = paths, cast_fn}}, struct ->
-        values_map =
-          Map.new(paths, fn {key, path} ->
-            {key, accessor.aggregate(data, path)}
-          end)
-
-        aggregate(values_map, field, cast_fn, struct)
-
-      {:field, {field, path, cast_fn, _opts}}, struct ->
-        field(accessor.field(data, path), field, cast_fn, struct)
-
-      {:field, {field, path, cast_fn}}, struct ->
-        field(accessor.field(data, path), field, cast_fn, struct)
-
-      {:has_one, {field, path, cast_module, _opts}}, struct ->
-        has_one(accessor.has_one(data, path), field, cast_module, struct)
-
-      {:has_one, {field, path, cast_module}}, struct ->
-        has_one(accessor.has_one(data, path), field, cast_module, struct)
-
-      {:has_many, {field, path, cast_module, _opts}}, struct ->
-        has_many(accessor.list_of(data, path), field, cast_module, struct)
-
-      {:has_many, {field, path, cast_module}}, struct ->
-        has_many(accessor.list_of(data, path), field, cast_module, struct)
-
-      {:list_of, {field, path, cast_module, _opts}}, struct ->
-        list_of(accessor.list_of(data, path), field, cast_module, struct)
-
-      {:list_of, {field, path, cast_module}}, struct ->
-        list_of(accessor.list_of(data, path), field, cast_module, struct)
+      {_, {_, _, _}} = field, struct ->
+        # By default fields are not nullable.
+        nullable? = false
+        process_field(field, struct, nullable?, accessor, data)
     end)
     |> case do
       :error -> :error
       {:error, error_message} -> {:error, error_message}
       struct -> {:ok, struct}
+    end
+  end
+
+  defp process_field(
+         {:aggregate, {field, %{} = paths, cast_fn}},
+         struct,
+         true = _nullable,
+         accessor,
+         data
+       ) do
+    values_map =
+      Map.new(paths, fn {key, path} ->
+        {key, accessor.aggregate(data, path)}
+      end)
+
+    aggregate(values_map, field, cast_fn, struct)
+  end
+
+  defp process_field(
+         {:aggregate, {field, %{} = paths, cast_fn}},
+         struct,
+         false = _nullable,
+         accessor,
+         data
+       ) do
+    Enum.reduce_while(paths, %{}, fn {key, path}, acc ->
+      case accessor.aggregate(data, path) do
+        # probably want the path to be the full path of all previous keys too but MEH for now
+        # ALSO how would we even collect errors. Have to reduce a different thing, a struct that gets
+        # thrown and an error.
+        nil -> {:halt, {:error, "non null field was nil: #{path}"}}
+        data -> {:cont, Map.put(acc, key, data)}
+      end
+    end)
+    |> case do
+      {:error, _} = error -> {:halt, error}
+      values_map -> aggregate(values_map, field, cast_fn, struct)
+    end
+  end
+
+  defp process_field({:field, {field, path, cast_fn}}, struct, true = _nullable, accessor, data) do
+    field(accessor.field(data, path), field, cast_fn, struct)
+  end
+
+  defp process_field({:field, {field, path, cast_fn}}, struct, false = _nullable, accessor, data) do
+    case accessor.field(data, path) do
+      # need a better error message probs
+      nil -> {:halt, {:error, "non null field was found to be null!"}}
+      data -> field(data, field, cast_fn, struct)
+    end
+  end
+
+  defp process_field(
+         {:has_one, {field, path, cast_module}},
+         struct,
+         true = _nullable,
+         accessor,
+         data
+       ) do
+    case accessor.has_one(data, path) do
+      nil -> {:cont, %{struct | field => nil}}
+      value -> has_one(value, field, cast_module, struct)
+    end
+  end
+
+  defp process_field(
+         {:has_one, {field, path, cast_module}},
+         struct,
+         false = _nullable,
+         accessor,
+         data
+       ) do
+    case accessor.has_one(data, path) do
+      nil -> {:halt, {:error, "no"}}
+      value -> has_one(value, field, cast_module, struct)
+    end
+  end
+
+  defp process_field(
+         {:has_many, {field, path, cast_module}},
+         struct,
+         true = _nullable,
+         accessor,
+         data
+       ) do
+    case accessor.list_of(data, path) do
+      nil -> {:cont, %{struct | field => nil}}
+      data -> has_many(data, field, cast_module, struct)
+    end
+  end
+
+  defp process_field(
+         {:has_many, {field, path, cast_module}},
+         struct,
+         false = _nullable,
+         accessor,
+         data
+       ) do
+    case accessor.has_many(data, path) do
+      nil -> {:halt, {:error, "no"}}
+      data -> has_many(data, field, cast_module, struct)
+    end
+  end
+
+  defp process_field(
+         {:list_of, {field, path, cast_module}},
+         struct,
+         true = _nullable,
+         accessor,
+         data
+       ) do
+    case accessor.list_of(data, path) do
+      nil -> {:cont, %{struct | field => nil}}
+      data -> list_of(data, field, cast_module, struct)
+    end
+  end
+
+  defp process_field(
+         {:list_of, {field, path, cast_module}},
+         struct,
+         false = _nullable,
+         accessor,
+         data
+       ) do
+    case accessor.list_of(data, path) do
+      nil -> {:halt, {:error, "no"}}
+      value -> list_of(value, field, cast_module, struct)
     end
   end
 

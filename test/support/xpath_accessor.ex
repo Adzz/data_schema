@@ -47,9 +47,9 @@ end
 # this is where we get to "the key should be included in the error" thing because then
 # error messages are better. if this failed it'd be hard to know why.
 # %DataSchema.CastErrors{errors: [
-# {field, message},
-# {field, message},
-# {field, message},
+#   {field, message},
+#   {field, message},
+#   {field, message},
 # ]} ->
 # raise "error: #{message}"
 # {:ok, struct} -> struct

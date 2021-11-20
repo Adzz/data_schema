@@ -23,6 +23,11 @@ defmodule XpathAccessor do
   end
 
   @impl true
+  def has_many(data, path) do
+    SweetXml.xpath(data, ~x"#{path}"l)
+  end
+
+  @impl true
   def aggregate(data, path) do
     SweetXml.xpath(data, ~x"#{path}"s)
   end
@@ -66,9 +71,6 @@ defmodule DraftPost do
   xpath_schema([
     field: {:content, "./Content/text()", &{:ok, to_string(&1)}}
   ])
-  def cast(data) do
-    {:ok, DataSchema.to_struct(data, __MODULE__)}
-  end
 end
 
 defmodule Comment do
@@ -77,10 +79,6 @@ defmodule Comment do
   xpath_schema([
     field: {:text, "./text()", &{:ok, to_string(&1)}}
   ])
-
-  def cast(data) do
-    {:ok, DataSchema.to_struct(data, __MODULE__)}
-  end
 end
 
 defmodule BlogPost do
@@ -88,7 +86,7 @@ defmodule BlogPost do
 
   xpath_schema([
     field: {:content, "/Blog/Content/text()", &{:ok, to_string(&1)}},
-    list_of: {:comments, "//Comment", Comment},
+    has_many: {:comments, "//Comment", Comment},
     has_one: {:draft, "/Blog/Draft", DraftPost},
     aggregate: {:post_datetime, %{date: "/Blog/@date", time: "/Blog/@time"}, &BlogPost.to_datetime/1},
   ])
