@@ -6,13 +6,11 @@ defmodule DataSchemaTest do
   defmodule DraftPost do
     import DataSchema, only: [data_schema: 1]
     data_schema(field: {:content, "content", &DataSchemaTest.to_stringg/1})
-    def cast(data), do: {:ok, DataSchema.to_struct(data, __MODULE__)}
   end
 
   defmodule Comment do
     import DataSchema, only: [data_schema: 1]
     data_schema(field: {:text, "text", &DataSchemaTest.to_stringg/1})
-    def cast(data), do: {:ok, DataSchema.to_struct(data, __MODULE__)}
   end
 
   defmodule BlogPost do
@@ -20,7 +18,7 @@ defmodule DataSchemaTest do
 
     data_schema(
       field: {:content, "content", &DataSchemaTest.to_stringg/1},
-      list_of: {:comments, "comments", Comment},
+      has_many: {:comments, "comments", Comment},
       has_one: {:draft, "draft", DraftPost},
       aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1}
     )
@@ -43,7 +41,7 @@ defmodule DataSchemaTest do
         "metadata" => %{"rating" => 0}
       }
 
-      blog = DataSchema.to_struct(input, BlogPost)
+      {:ok, blog} = DataSchema.to_struct(input, BlogPost)
 
       assert blog == %DataSchemaTest.BlogPost{
                comments: [
@@ -63,7 +61,7 @@ defmodule DataSchemaTest do
     test "fields are added as a secret fn" do
       assert BlogPost.__data_schema_fields() == [
                field: {:content, "content", &DataSchemaTest.to_stringg/1},
-               list_of: {:comments, "comments", DataSchemaTest.Comment},
+               has_many: {:comments, "comments", DataSchemaTest.Comment},
                has_one: {:draft, "draft", DataSchemaTest.DraftPost},
                aggregate:
                  {:post_datetime, %{date: "date", time: "time"},
@@ -77,7 +75,6 @@ defmodule DataSchemaTest do
   defmodule DaftPost do
     import DataSchema, only: [data_schema: 1]
     data_schema(field: {:content, "content", &{:ok, to_string(&1)}})
-    def cast(data), do: {:ok, DataSchema.to_struct(data, __MODULE__)}
   end
 
   defmodule BlagPost do
@@ -85,7 +82,7 @@ defmodule DataSchemaTest do
 
     data_schema(
       field: {:content, "content", fn x -> {:ok, to_string(x)} end},
-      list_of: {:comments, "comments", Comment},
+      has_many: {:comments, "comments", Comment},
       has_one: {:draft, "draft", DaftPost},
       aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlagPost.to_datetime/1}
     )
@@ -149,9 +146,12 @@ defmodule DataSchemaTest do
     end
 
     test "errors on :has_one" do
-      input = %{"thing" => nil}
+      # nil is an error if the field is not optional which they aren't by default.
+      # But if they _are_ optional then how do we make it not an error?
+      # input = %{"thing" => nil} needs to work for both cases.
+      input = %{"thing" => %{}}
       blog = DataSchema.to_struct(input, HasOneError)
-      assert blog == :error
+      assert blog == {:error, nil}
     end
 
     defmodule ListOfError do

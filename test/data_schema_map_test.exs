@@ -3,22 +3,12 @@ defmodule DataSchemaMapTest do
 
   defmodule DraftPost do
     import DataSchema, only: [data_schema: 2]
-
     data_schema([field: {:content, "content", DataSchema.String}], DataSchema.MapAccessor)
-
-    def cast(data) do
-      {:ok, DataSchema.to_struct(data, __MODULE__)}
-    end
   end
 
   defmodule Comment do
     import DataSchema, only: [data_schema: 2]
-
     data_schema([field: {:text, "text", DataSchema.String}], DataSchema.MapAccessor)
-
-    def cast(data) do
-      {:ok, DataSchema.to_struct(data, __MODULE__)}
-    end
   end
 
   defmodule BlogPost do
@@ -27,7 +17,7 @@ defmodule DataSchemaMapTest do
     data_schema(
       [
         field: {:content, "content", DataSchema.String},
-        list_of: {:comments, "comments", Comment},
+        has_many: {:comments, "comments", Comment},
         has_one: {:draft, "draft", DraftPost},
         aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1}
       ],
@@ -64,7 +54,7 @@ defmodule DataSchemaMapTest do
 
   describe "to_struct!/2" do
     test "casts a :field" do
-      blog = DataSchema.to_struct(source_data(), BlogPost)
+      {:ok, blog} = DataSchema.to_struct(source_data(), BlogPost)
 
       assert blog.__struct__ == DataSchemaMapTest.BlogPost
       assert blog.content == "This is a blog post"
@@ -81,14 +71,14 @@ defmodule DataSchemaMapTest do
     end
 
     test "aggregate field works too" do
-      blog = DataSchema.to_struct(source_data(), BlogPost)
+      {:ok, blog} = DataSchema.to_struct(source_data(), BlogPost)
 
       assert blog.__struct__ == DataSchemaMapTest.BlogPost
       assert blog.post_datetime == ~N[2021-11-11 14:00:00]
     end
 
-    test "casts all list_of fields" do
-      blog = DataSchema.to_struct(source_data(), BlogPost)
+    test "casts all has_many fields" do
+      {:ok, blog} = DataSchema.to_struct(source_data(), BlogPost)
 
       assert blog.__struct__ == DataSchemaMapTest.BlogPost
 
@@ -99,7 +89,7 @@ defmodule DataSchemaMapTest do
     end
 
     test "casts an embed_one field" do
-      blog = DataSchema.to_struct(source_data(), BlogPost)
+      {:ok, blog} = DataSchema.to_struct(source_data(), BlogPost)
 
       assert blog.__struct__ == DataSchemaMapTest.BlogPost
 

@@ -173,14 +173,14 @@ defmodule DataSchema do
                       fn
                         # Validates the shape of the fields at compile time.
                         {type, {_, _xpath, _cast_fn, _opts}}, acc
-                        when type not in [:field, :has_one, :aggregate, :list_of] ->
+                        when type not in [:field, :has_one, :has_many, :aggregate, :list_of] ->
                           raise DataSchema.InvalidSchemaError,
                                 "Field #{inspect(type)} is not a valid field type.\n" <>
                                   "Check the docs in DataSchema for more " <>
                                   "information on how fields should be written."
 
                         {type, {_, _xpath, _cast_fn}}, acc
-                        when type not in [:field, :has_one, :aggregate, :list_of] ->
+                        when type not in [:field, :has_one, :has_many, :aggregate, :list_of] ->
                           raise DataSchema.InvalidSchemaError,
                                 "Field #{inspect(type)} is not a valid field type.\n" <>
                                   "Check the docs in DataSchema for more " <>
@@ -210,72 +210,63 @@ defmodule DataSchema do
     end
   end
 
-  # @doc """
-  # Accepts an data schema module and some source data and attempts to create the struct
-  # defined in the schema from the source data recursively.
-
-  # We essentially visit each field in the schema and extract the data the field points to
-  # from the sauce data, passing it to the field's casting function before setting the
-  # result of that as the value on the struct.
-
-  # This function takes a simple approach to creating the struct - whatever you return from
-  # a casting function will be set as the value of the struct field. You should raise if
-  # you want casting to fail.
-
-  # ### Examples
-
-  #     data = %{ "spice" => "enables space travel" }
-
-  #     defmodule Foo do
-  #       require DataSchema
-
-  #       DataSchema.data_schema(
-  #         field: {:a_rocket, "spice", &({:ok, &1})}
-  #       )
-  #     end
-
-  #     DataSchema.to_struct(data, Foo)
-  #     # => Outputs the following:
-  #     %Foo{a_rocket: "enables space travel"}
-  # """
-
-  # Note we should make a to_struct() that lets the accessor return a tuple and we can
-  # reduce_while, bail out with an error in the case of failure,
-
   @doc """
+  Accepts an data schema module and some source data and attempts to create the struct
+  defined in the schema from the source data recursively.
+
+  We essentially visit each field in the schema and extract the data the field points to
+  from the sauce data, passing it to the field's casting function before setting the
+  result of that as the value on the struct.
+
+  This function takes a simple approach to creating the struct - whatever you return from
+  a casting function will be set as the value of the struct field. You should raise if
+  you want casting to fail.
+
+  ### Examples
+
+      data = %{ "spice" => "enables space travel" }
+
+      defmodule Foo do
+        require DataSchema
+
+        DataSchema.data_schema(
+          field: {:a_rocket, "spice", &({:ok, &1})}
+        )
+      end
+
+      DataSchema.to_struct(data, Foo)
+      # => Outputs the following:
+      %Foo{a_rocket: "enables space travel"}
   """
   def to_struct(data, %schema{}) do
-    to_struct(data, schema)
+    to_struct(data, schema, [])
   end
 
-  # There are two ways to do this we could let accessors return ok tuples and that would
-  # allow for bailing out if they error for some reason. Which would be an easy way to
-  # implement something like "This has to be in the source data" without raising.
-  # BUT that is hard to explain. In practice it's probably easier to handle that in casting
-  # and have the cast fns PM on nil. That would mean
-
-  # Also when casting we could have a :error / :ok convention so that we can bail out if
-  # casting fails with an error (o course then you gets ta thinking that we should collect
-  # errors then you have changesets). But yea do we need both.........??
-
-  # The question is also "how do we enforce not null" there is both "you can't create the
-  # struct with nil value" and there is the "you can never set it to nil". We can enforce
-  # the latter if someone always uses this to_struct to create the thing.
   def to_struct(data, schema) do
+    to_struct(data, schema, [])
+  end
+
+  def to_struct(data, %schema{}, opts) do
+    to_struct(data, schema, opts)
+  end
+
+  def to_struct(data, schema, _opts) do
+    # basically two different fns if we do collect errors. So we will come back to this
+    # get fail fast working first.
+    # collect_errors? = Keyword.get(opts, :collect_errors, false)
     accessor = schema.__data_accessor()
 
     Enum.reduce_while(schema.__data_schema_fields(), struct(schema, %{}), fn
       {:aggregate, {field, %{} = paths, cast_fn, _opts}}, struct ->
+        # Should this be reduce_while? only if accessors return tuples....
+        # and if they do how does collect errors factor in. Really they should error
+        # if not nil is a thing.
         values_map =
           Map.new(paths, fn {key, path} ->
             {key, accessor.aggregate(data, path)}
           end)
 
-        case call_cast_fn(cast_fn, values_map) do
-          {:ok, value} -> {:cont, %{struct | field => value}}
-          {:error, _} = error -> {:halt, error}
-          :error -> {:halt, :error}
-        end
+        aggregate(values_map, field, cast_fn, struct)
 
       {:aggregate, {field, %{} = paths, cast_fn}}, struct ->
         values_map =
@@ -283,11 +274,7 @@ defmodule DataSchema do
             {key, accessor.aggregate(data, path)}
           end)
 
-        case call_cast_fn(cast_fn, values_map) do
-          {:ok, value} -> {:cont, %{struct | field => value}}
-          {:error, _} = error -> {:halt, error}
-          :error -> {:halt, :error}
-        end
+        aggregate(values_map, field, cast_fn, struct)
 
       {:field, {field, path, cast_fn, _opts}}, struct ->
         case call_cast_fn(cast_fn, accessor.field(data, path)) do
@@ -295,14 +282,6 @@ defmodule DataSchema do
           {:error, _} = error -> {:halt, error}
           :error -> {:halt, :error}
         end
-
-      # can we generalize? Is apply a perf thing>
-      # {field_type, {struct_key, path, cast_fn}}, struct ->
-      #   case call_cast_fn(cast_fn, apply(accessor, field_type, [data, path])) do
-      #     {:ok, value} -> {:cont, %{struct | field => value}}
-      #     {:error, _} = error -> {:halt, error}
-      #     :error -> {:halt, :error}
-      #   end
 
       {:field, {field, path, cast_fn}}, struct ->
         case call_cast_fn(cast_fn, accessor.field(data, path)) do
@@ -312,63 +291,90 @@ defmodule DataSchema do
         end
 
       {:has_one, {field, path, cast_module, _opts}}, struct ->
-        case call_cast_fn(cast_module, accessor.has_one(data, path)) do
-          {:error, _} = error -> {:halt, error}
-          :error -> {:halt, :error}
-          {:ok, value} -> {:cont, %{struct | field => value}}
-        end
+        has_one(accessor.has_one(data, path), field, cast_module, struct)
 
       {:has_one, {field, path, cast_module}}, struct ->
-        case call_cast_fn(cast_module, accessor.has_one(data, path)) do
-          {:error, _} = error -> {:halt, error}
-          :error -> {:halt, :error}
-          {:ok, value} -> {:cont, %{struct | field => value}}
-        end
+        has_one(accessor.has_one(data, path), field, cast_module, struct)
+
+      {:has_many, {field, path, cast_module, _opts}}, struct ->
+        has_many(accessor.list_of(data, path), field, cast_module, struct)
+
+      {:has_many, {field, path, cast_module}}, struct ->
+        has_many(accessor.list_of(data, path), field, cast_module, struct)
 
       # We could have access to :optional? here which allows for runtime validation that
       # it exists or not. But default it should be needed. Or we just let casting handle it
       # But given that we have optional as a thing we really need to continue to back it up here
       # If you use it on a list then like it's a thing
       {:list_of, {field, path, cast_module, _opts}}, struct ->
-        accessor.list_of(data, path)
-        |> Enum.reduce_while([], fn datum, acc ->
-          case call_cast_fn(cast_module, datum) do
-            {:ok, value} -> {:cont, [value | acc]}
-            {:error, _} = error -> {:halt, error}
-            :error -> {:halt, :error}
-          end
-        end)
-        |> case do
-          {:error, _} = error ->
-            {:halt, error}
-
-          :error ->
-            {:halt, :error}
-
-          relations when is_list(relations) ->
-            {:cont, %{struct | field => :lists.reverse(relations)}}
-        end
+        list_of(accessor.list_of(data, path), field, cast_module, struct)
 
       {:list_of, {field, path, cast_module}}, struct ->
-        accessor.list_of(data, path)
-        |> Enum.reduce_while([], fn datum, acc ->
-          case call_cast_fn(cast_module, datum) do
-            {:ok, value} -> {:cont, [value | acc]}
-            {:error, _} = error -> {:halt, error}
-            :error -> {:halt, :error}
-          end
-        end)
-        |> case do
-          {:error, _} = error ->
-            {:halt, error}
-
-          :error ->
-            {:halt, :error}
-
-          relations when is_list(relations) ->
-            {:cont, %{struct | field => :lists.reverse(relations)}}
-        end
+        list_of(accessor.list_of(data, path), field, cast_module, struct)
     end)
+    |> case do
+      :error -> :error
+      {:error, error_message} -> {:error, error_message}
+      struct -> {:ok, struct}
+    end
+  end
+
+  defp aggregate(values_map, field, cast_fn, struct) do
+    case call_cast_fn(cast_fn, values_map) do
+      {:ok, value} -> {:cont, %{struct | field => value}}
+      {:error, _} = error -> {:halt, error}
+      :error -> {:halt, :error}
+    end
+  end
+
+  defp has_one(data, field, cast_module, struct) do
+    case to_struct(data, cast_module) do
+      {:ok, value} -> {:cont, %{struct | field => value}}
+      {:error, _} = error -> {:halt, error}
+      :error -> {:halt, :error}
+    end
+  end
+
+  defp list_of(data, field, cast_module, struct) do
+    data
+    |> Enum.reduce_while([], fn datum, acc ->
+      case call_cast_fn(cast_module, datum) do
+        {:ok, value} -> {:cont, [value | acc]}
+        {:error, _} = error -> {:halt, error}
+        :error -> {:halt, :error}
+      end
+    end)
+    |> case do
+      {:error, _} = error ->
+        {:halt, error}
+
+      :error ->
+        {:halt, :error}
+
+      relations when is_list(relations) ->
+        {:cont, %{struct | field => :lists.reverse(relations)}}
+    end
+  end
+
+  defp has_many(data, field, cast_module, struct) do
+    data
+    |> Enum.reduce_while([], fn datum, acc ->
+      case to_struct(datum, cast_module) do
+        {:ok, struct} -> {:cont, [struct | acc]}
+        {:error, _} = error -> {:halt, error}
+        :error -> {:halt, :error}
+      end
+    end)
+    |> case do
+      {:error, _} = error ->
+        {:halt, error}
+
+      :error ->
+        {:halt, :error}
+
+      relations when is_list(relations) ->
+        {:cont, %{struct | field => :lists.reverse(relations)}}
+    end
   end
 
   # This just lets us use either a module name for the data type OR a one arity fn.

@@ -14,8 +14,6 @@ defmodule DataSchemaXmlTest do
       ],
       XpathAccessor
     )
-
-    def cast(xmerl), do: {:ok, DataSchema.to_struct(xmerl, __MODULE__)}
   end
 
   defmodule Salad do
@@ -24,14 +22,12 @@ defmodule DataSchemaXmlTest do
     DataSchema.data_schema(
       [
         field: {:name, "./@Name", &{:ok, &1}},
-        list_of: {:cheese_slices, "./Cheese", Cheese}
+        has_many: {:cheese_slices, "./Cheese", Cheese}
       ],
       # This should be a module attr that we get somehow. rather than passing to
       # the schema function.
       XpathAccessor
     )
-
-    def cast(xmerl), do: {:ok, DataSchema.to_struct(xmerl, __MODULE__)}
   end
 
   defmodule Sauce do
@@ -47,7 +43,7 @@ defmodule DataSchemaXmlTest do
     DataSchema.data_schema(
       [
         field: {:type, "./Type/text()", &DataSchemaXmlTest.to_upcase(&1)},
-        list_of: {:salads, "./Salads/Salad", Salad},
+        has_many: {:salads, "./Salads/Salad", Salad},
         has_one: {:sauce, "./Sauce", Sauce},
         aggregate: {:ready_datetime, @datetime_fields, &__MODULE__.datetime/1}
       ],
@@ -104,7 +100,7 @@ defmodule DataSchemaXmlTest do
   test "fields are added as a secret fn" do
     assert SteamedHam.__data_schema_fields() == [
              field: {:type, "./Type/text()", &DataSchemaXmlTest.to_upcase/1},
-             list_of: {:salads, "./Salads/Salad", DataSchemaXmlTest.Salad},
+             has_many: {:salads, "./Salads/Salad", DataSchemaXmlTest.Salad},
              has_one: {:sauce, "./Sauce", DataSchemaXmlTest.Sauce},
              aggregate: {
                :ready_datetime,
@@ -116,14 +112,14 @@ defmodule DataSchemaXmlTest do
 
   describe "to_struct/2" do
     test "casts a :field" do
-      burger = DataSchema.to_struct(xml(), SteamedHam)
+      {:ok, burger} = DataSchema.to_struct(xml(), SteamedHam)
 
       assert burger.__struct__ == DataSchemaXmlTest.SteamedHam
       assert burger.type == "MEDIUM RARE"
     end
 
     test "casts all list_of fields" do
-      burger = DataSchema.to_struct(xml(), SteamedHam)
+      {:ok, burger} = DataSchema.to_struct(xml(), SteamedHam)
 
       assert burger.__struct__ == DataSchemaXmlTest.SteamedHam
 
@@ -136,7 +132,7 @@ defmodule DataSchemaXmlTest do
     end
 
     test "casts an embed_one field" do
-      burger = DataSchema.to_struct(xml(), SteamedHam)
+      {:ok, burger} = DataSchema.to_struct(xml(), SteamedHam)
 
       assert burger.__struct__ == DataSchemaXmlTest.SteamedHam
 

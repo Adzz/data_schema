@@ -1,10 +1,8 @@
 # Stopping to_struct when there is an error
 
-There are two ways to create a struct from a schema `DataSchema.to_struct/2` and `DataSchema.to_struct/2`. The crucial difference is that with the latter you can have your casting functions return an `:error` or an error tuple and the creation of the struct will halt and the error will be returned.
+When we create a struct from a schema `DataSchema.to_struct/2` a casting function can return an error, optionally with a message, but there are two ways we could handle this error. The first is to stop immediately and return that error. The other is to collect all of the errors from all cast functions and return all of them to the user.
 
-In contrast `DataSchema.to_struct` will always put whatever is returned from the casting functions into the struct so the only way to fail is to raise an error in the casting function.
-
-Contrast the following approaches:
+Each has its place and both are possible in DataSchema. Contrast the following approaches:
 
 ### `DataSchema.to_struct/2`
 
@@ -19,7 +17,7 @@ defmodule BlagPost do
   def to_datetime(%{date: date_string, time: time_string}) do
     with {:date, {:ok, date}} <- {:date, Date.from_iso8601(date_string)},
          {:time, {:ok, time}} <- {:time, Time.from_iso8601(time_string)} do
-          NaiveDateTime.new(date, time)
+      NaiveDateTime.new(date, time)
     else
       {:date, {:error, _}} -> {:error, "Date is invalid: #{inspect(date_string)}"}
       {:time, {:error, _}} -> {:error, "Time is invalid: #{inspect(time_string)}"}
@@ -33,6 +31,10 @@ input = %{
 }
 
 DataSchema.to_struct(input, BlagPost)
+
+DataSchema.to_struct(input, BlagPost, collect_errors: true)
+
+
 # => {:error, "Date is invalid: \"not a date\""}
 ```
 

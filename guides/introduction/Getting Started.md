@@ -64,10 +64,6 @@ defmodule DraftPost do
   data_schema([
     field: {:content, "content", &{:ok, to_string(&1)}}
   ])
-
-  def cast(data) do
-    {:ok, DataSchema.to_struct(data, __MODULE__)}
-  end
 end
 
 defmodule Comment do
@@ -76,10 +72,6 @@ defmodule Comment do
   data_schema([
     field: {:text, "text", &{:ok, to_string(&1)}}
   ])
-
-  def cast(data) do
-    {:ok, DataSchema.to_struct(data, __MODULE__)}
-  end
 end
 
 defmodule BlogPost do
@@ -134,10 +126,6 @@ defmodule DraftPost do
   data_schema([
     field: {:content, "content", &{:ok, to_string(&1)}}
   ], DataSchema.MapAccessor)
-
-  def cast(data) do
-    {:ok, DataSchema.to_struct(data, __MODULE__)}
-  end
 end
 
 defmodule Comment do
@@ -146,10 +134,6 @@ defmodule Comment do
   data_schema([
     field: {:text, "text", &{:ok, to_string(&1)}}
   ], DataSchema.MapAccessor)
-
-  def cast(data) do
-    {:ok, DataSchema.to_struct(data, __MODULE__)}
-  end
 end
 
 defmodule BlogPost do
@@ -191,6 +175,11 @@ defmodule DataSchema.MapAccessor do
   end
 
   @impl true
+  def has_many(data = %{}, field) do
+    Map.get(data, field)
+  end
+
+  @impl true
   def aggregate(data = %{}, field) do
     Map.get(data, field)
   end
@@ -219,10 +208,6 @@ defmodule DraftPost do
   map_schema([
     field: {:content, "content", &{:ok, to_string(&1)}}
   ])
-
-  def cast(data) do
-    {:ok, DataSchema.to_struct(data, __MODULE__)}
-  end
 end
 
 defmodule Comment do
@@ -231,10 +216,6 @@ defmodule Comment do
   map_schema([
     field: {:text, "text", &{:ok, to_string(&1)}}
   ])
-
-  def cast(data) do
-    {:ok, DataSchema.to_struct(data, __MODULE__)}
-  end
 end
 
 defmodule BlogPost do

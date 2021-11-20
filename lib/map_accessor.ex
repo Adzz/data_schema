@@ -28,6 +28,13 @@ defmodule DataSchema.MapAccessor do
 
   @impl true
   @doc """
+  Accesses the source data using `Map.get/2` when a `:has_many` type is encountered during
+  struct creation.
+  """
+  def has_many(data = %{}, field), do: Map.get(data, field)
+
+  @impl true
+  @doc """
   Accesses the source data using `Map.get/2` when an `:aggregate` type is encountered during
   struct creation.
   """

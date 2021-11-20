@@ -3,22 +3,12 @@ defmodule DataSchema.MapTest do
 
   defmodule DraftPost do
     import DataSchema.Map, only: [map_schema: 1]
-
     map_schema(field: {:content, "content", DataSchema.String})
-
-    def cast(data) do
-      {:ok, DataSchema.to_struct(data, __MODULE__)}
-    end
   end
 
   defmodule Comment do
     import DataSchema.Map, only: [map_schema: 1]
-
     map_schema(field: {:text, "text", DataSchema.String})
-
-    def cast(data) do
-      {:ok, DataSchema.to_struct(data, __MODULE__)}
-    end
   end
 
   defmodule BlogPost do
@@ -26,7 +16,7 @@ defmodule DataSchema.MapTest do
 
     map_schema(
       field: {:content, "content", DataSchema.String},
-      list_of: {:comments, "comments", Comment},
+      has_many: {:comments, "comments", Comment},
       has_one: {:draft, "draft", DraftPost},
       aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1}
     )
@@ -46,7 +36,7 @@ defmodule DataSchema.MapTest do
     test "fields are added as a secret fn" do
       assert BlogPost.__data_schema_fields() == [
                field: {:content, "content", DataSchema.String},
-               list_of: {:comments, "comments", DataSchema.MapTest.Comment},
+               has_many: {:comments, "comments", DataSchema.MapTest.Comment},
                has_one: {:draft, "draft", DataSchema.MapTest.DraftPost},
                aggregate:
                  {:post_datetime, %{date: "date", time: "time"},
@@ -64,7 +54,7 @@ defmodule DataSchema.MapTest do
         "metadata" => %{"rating" => 0}
       }
 
-      blog = DataSchema.to_struct(input, BlogPost)
+      {:ok, blog} = DataSchema.to_struct(input, BlogPost)
 
       assert blog == %DataSchema.MapTest.BlogPost{
                comments: [

@@ -32,6 +32,11 @@ defmodule DataSchema.DataAccessBehaviour do
         end
 
         @impl true
+        def has_many(data = %{}, field) do
+          Map.get(data, field)
+        end
+
+        @impl true
         def aggregate(data = %{}, field) do
           Map.get(data, field)
         end
@@ -58,6 +63,8 @@ defmodule DataSchema.DataAccessBehaviour do
   The function that will be called when a `:field` field is encountered in the schema when
   we are turning some input data into a struct.
   """
+  # Should these be okay tuples? What would we do in the case of error. I guess bail out.
+  # It would mean non_null is not field level though.
   @callback field(any(), any()) :: any()
   @doc """
   The function that will be called when a `:list_of` field is encountered in the schema
@@ -69,6 +76,11 @@ defmodule DataSchema.DataAccessBehaviour do
   when we are turning some input data into a struct.
   """
   @callback has_one(any(), any()) :: any()
+  @doc """
+  The function that will be called when a `:has_one` field is encountered in the schema
+  when we are turning some input data into a struct.
+  """
+  @callback has_many(any(), any()) :: any()
   @doc """
   The function that will be called when an `:aggregate` field is encountered in the schema
   when we are turning some input data into a struct.
