@@ -1,12 +1,13 @@
 # Todo List
 
-- inline schema fields for has_one / has_many - Probably not doing as need a nice way to add the name of the struct when it is inline... I don't think there is one particularly. The other option is to just make a map for inline schemas but seems worse for some reason. Think it's better than supplying a struct name though.
+- add mad tests... For optional?, not. Aggregate fields inline and not inline. For when access returns nil for each field and for when the cast fn returns nil for all fields and cases.
 - update docs
 - Remove data_schema/2 and supply the accessor as a module attribute instead
 - Fix the doc below to make sense.
 - make an DataSchema.Error struct or similar.
 - collect_errors version of to_struct using the above error struct.
 - Livebook for the repo (make the guides livebooks that would mean they are easier to test too.)
+- inline schema fields for has_one / has_many - Probably not doing as need a nice way to add the name of the struct when it is inline... I don't think there is one particularly. The other option is to just make a map for inline schemas but seems worse for some reason. Think it's better than supplying a struct name though.
 
 
 

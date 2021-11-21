@@ -15,26 +15,20 @@ defmodule DataSchemaMapTest do
     import DataSchema, only: [data_schema: 2]
 
     # Test this code path.
-    # defmodule DateTime do
-    #   import DataSchema, only: [data_schema: 1]
-    #   data_schema([
-    #     field: {:date, "date", &Date.from_iso8601/1},
-    #     field: {:time, "time", &Time.from_iso8601/1}
-    #   ])
-    # end
-    # aggregate: {:post_datetime, DateTime, &BlogPost.to_datetime/1}
-
-    @mapping [
-      field: {:date, "date", &Date.from_iso8601/1},
-      field: {:time, "time", &Time.from_iso8601/1}
-    ]
+    defmodule DateTime do
+      import DataSchema, only: [data_schema: 1]
+      data_schema([
+        field: {:date, "date", &Date.from_iso8601/1},
+        field: {:time, "time", &Time.from_iso8601/1}
+      ])
+    end
 
     data_schema(
       [
         field: {:content, "content", DataSchema.String},
         has_many: {:comments, "comments", Comment},
         has_one: {:draft, "draft", DraftPost},
-        aggregate: {:post_datetime, @mapping, &BlogPost.to_datetime/1}
+        aggregate: {:post_datetime, DateTime, &BlogPost.to_datetime/1}
       ],
       DataSchema.MapAccessor
     )
