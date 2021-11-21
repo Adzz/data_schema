@@ -35,11 +35,6 @@ defmodule DataSchema.DataAccessBehaviour do
         def has_many(data = %{}, field) do
           Map.get(data, field)
         end
-
-        @impl true
-        def aggregate(data = %{}, field) do
-          Map.get(data, field)
-        end
       end
 
   Then you would pass it into the schema definition:
@@ -81,9 +76,4 @@ defmodule DataSchema.DataAccessBehaviour do
   when we are turning some input data into a struct.
   """
   @callback has_many(any(), any()) :: any()
-  @doc """
-  The function that will be called when an `:aggregate` field is encountered in the schema
-  when we are turning some input data into a struct.
-  """
-  @callback aggregate(any(), any()) :: any()
 end

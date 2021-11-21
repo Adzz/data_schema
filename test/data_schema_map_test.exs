@@ -14,19 +14,32 @@ defmodule DataSchemaMapTest do
   defmodule BlogPost do
     import DataSchema, only: [data_schema: 2]
 
+    # Test this code path.
+    # defmodule DateTime do
+    #   import DataSchema, only: [data_schema: 1]
+    #   data_schema([
+    #     field: {:date, "date", &Date.from_iso8601/1},
+    #     field: {:time, "time", &Time.from_iso8601/1}
+    #   ])
+    # end
+    # aggregate: {:post_datetime, DateTime, &BlogPost.to_datetime/1}
+
+    @mapping [
+      field: {:date, "date", &Date.from_iso8601/1},
+      field: {:time, "time", &Time.from_iso8601/1}
+    ]
+
     data_schema(
       [
         field: {:content, "content", DataSchema.String},
         has_many: {:comments, "comments", Comment},
         has_one: {:draft, "draft", DraftPost},
-        aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1}
+        aggregate: {:post_datetime, @mapping, &BlogPost.to_datetime/1}
       ],
       DataSchema.MapAccessor
     )
 
-    def to_datetime(%{date: date_string, time: time_string}) do
-      date = Date.from_iso8601!(date_string)
-      time = Time.from_iso8601!(time_string)
+    def to_datetime(%{date: date, time: time}) do
       NaiveDateTime.new(date, time)
     end
   end

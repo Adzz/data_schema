@@ -26,11 +26,6 @@ defmodule XpathAccessor do
   def has_many(data, path) do
     SweetXml.xpath(data, ~x"#{path}"l)
   end
-
-  @impl true
-  def aggregate(data, path) do
-    SweetXml.xpath(data, ~x"#{path}"s)
-  end
 end
 
 defmodule DataSchema.Xpath do

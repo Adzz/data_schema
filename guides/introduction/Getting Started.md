@@ -24,12 +24,14 @@ field {:content, "text", &cast_string/1}
 
 This says in the source data there will be a field called `:text`. When creating a struct we should get the data under that field and pass it too `cast_string/1`. The result of that function will be put in the resultant struct under the key `:content`.
 
-There are 4 kinds of struct fields we could want:
+There are 5 kinds of struct fields we could want:
 
 1. `field`     - The value will be a casted value from the source data.
 2. `list_of`   - The value will be a list of casted values created from the source data.
-3. `has_one`   - The value will be created from a nested data schema.
-4. `aggregate` - The value will a casted value formed from multiple bits of data in the source.
+3. `has_one`   - The value will be created from a nested data schema (so will be a struct)
+4. `has_many`  - The value will be created by casting a list of values into a data schema.
+(You end up with a list of structs defined by the provided schema). Similar to has_many in ecto
+5. `aggregate` - The value will a casted value formed from multiple bits of data in the source.
 
 To see this better let's look at a very simple example. Assume our input data looks like this:
 
@@ -79,7 +81,7 @@ defmodule BlogPost do
 
   data_schema([
     field: {:content, "content", &{:ok, to_string(&1)}},
-    list_of: {:comments, "comments", Comment},
+    has_many: {:comments, "comments", Comment},
     has_one: {:draft, "draft", DraftPost},
     aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1},
   ])
@@ -141,7 +143,7 @@ defmodule BlogPost do
 
   data_schema([
     field: {:content, "content", &{:ok, to_string(&1)}},
-    list_of: {:comments, "comments", Comment},
+    has_many: {:comments, "comments", Comment},
     has_one: {:draft, "draft", DraftPost},
     aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1},
   ], DataSchema.MapAccessor)
@@ -176,11 +178,6 @@ defmodule DataSchema.MapAccessor do
 
   @impl true
   def has_many(data = %{}, field) do
-    Map.get(data, field)
-  end
-
-  @impl true
-  def aggregate(data = %{}, field) do
     Map.get(data, field)
   end
 end
@@ -223,7 +220,7 @@ defmodule BlogPost do
 
   map_schema([
     field: {:content, "content", &{:ok, to_string(&1)}},
-    list_of: {:comments, "comments", Comment},
+    has_many: {:comments, "comments", Comment},
     has_one: {:draft, "draft", DraftPost},
     aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1},
   ])

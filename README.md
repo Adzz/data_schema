@@ -182,11 +182,6 @@ defmodule DataSchema.MapAccessor do
   def has_many(data = %{}, field) do
     Map.get(data, field)
   end
-
-  @impl true
-  def aggregate(data = %{}, field) do
-    Map.get(data, field)
-  end
 end
 ```
 
@@ -269,11 +264,6 @@ defmodule XpathAccessor do
   @impl true
   def has_many(data, path) do
     SweetXml.xpath(data, ~x"#{path}"l)
-  end
-
-  @impl true
-  def aggregate(data, path) do
-    SweetXml.xpath(data, ~x"#{path}"s)
   end
 end
 

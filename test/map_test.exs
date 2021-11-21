@@ -14,16 +14,18 @@ defmodule DataSchema.MapTest do
   defmodule BlogPost do
     import DataSchema.Map, only: [map_schema: 1]
 
+    @mapping [
+      field: {:date, "date", &Date.from_iso8601/1},
+      field: {:time, "time", &Time.from_iso8601/1}
+    ]
     map_schema(
       field: {:content, "content", DataSchema.String},
       has_many: {:comments, "comments", Comment},
       has_one: {:draft, "draft", DraftPost},
-      aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1}
+      aggregate: {:post_datetime, @mapping, &BlogPost.to_datetime/1}
     )
 
-    def to_datetime(%{date: date_string, time: time_string}) do
-      date = Date.from_iso8601!(date_string)
-      time = Time.from_iso8601!(time_string)
+    def to_datetime(%{date: date, time: time}) do
       NaiveDateTime.new(date, time)
     end
   end
@@ -39,8 +41,11 @@ defmodule DataSchema.MapTest do
                has_many: {:comments, "comments", DataSchema.MapTest.Comment},
                has_one: {:draft, "draft", DataSchema.MapTest.DraftPost},
                aggregate:
-                 {:post_datetime, %{date: "date", time: "time"},
-                  &DataSchema.MapTest.BlogPost.to_datetime/1}
+                 {:post_datetime,
+                  [
+                    field: {:date, "date", &Date.from_iso8601/1},
+                    field: {:time, "time", &Time.from_iso8601/1}
+                  ], &DataSchema.MapTest.BlogPost.to_datetime/1}
              ]
     end
 

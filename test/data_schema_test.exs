@@ -16,16 +16,18 @@ defmodule DataSchemaTest do
   defmodule BlogPost do
     import DataSchema, only: [data_schema: 1]
 
+    @mapping [
+      field: {:date, "date", &Date.from_iso8601/1},
+      field: {:time, "time", &Time.from_iso8601/1}
+    ]
     data_schema(
       field: {:content, "content", &DataSchemaTest.to_stringg/1},
       has_many: {:comments, "comments", Comment},
       has_one: {:draft, "draft", DraftPost},
-      aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1}
+      aggregate: {:post_datetime, @mapping, &BlogPost.to_datetime/1}
     )
 
-    def to_datetime(%{date: date_string, time: time_string}) do
-      date = Date.from_iso8601!(date_string)
-      time = Time.from_iso8601!(time_string)
+    def to_datetime(%{date: date, time: time}) do
       NaiveDateTime.new(date, time)
     end
   end
@@ -64,8 +66,11 @@ defmodule DataSchemaTest do
                has_many: {:comments, "comments", DataSchemaTest.Comment},
                has_one: {:draft, "draft", DataSchemaTest.DraftPost},
                aggregate:
-                 {:post_datetime, %{date: "date", time: "time"},
-                  &DataSchemaTest.BlogPost.to_datetime/1}
+                 {:post_datetime,
+                  [
+                    field: {:date, "date", &Date.from_iso8601/1},
+                    field: {:time, "time", &Time.from_iso8601/1}
+                  ], &DataSchemaTest.BlogPost.to_datetime/1}
              ]
     end
   end
@@ -80,22 +85,19 @@ defmodule DataSchemaTest do
   defmodule BlagPost do
     import DataSchema, only: [data_schema: 1]
 
+    @mapping [
+      field: {:date, "date", &Date.from_iso8601/1},
+      field: {:time, "time", &Time.from_iso8601/1}
+    ]
     data_schema(
       field: {:content, "content", fn x -> {:ok, to_string(x)} end},
       has_many: {:comments, "comments", Comment},
       has_one: {:draft, "draft", DaftPost},
-      aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlagPost.to_datetime/1}
+      aggregate: {:post_datetime, @mapping, &BlagPost.to_datetime/1}
     )
 
-    def to_datetime(%{date: date_string, time: time_string}) do
-      with {:date, {:ok, date}} <- {:date, Date.from_iso8601(date_string)},
-           {:time, {:ok, time}} <- {:time, Time.from_iso8601(time_string)},
-           {:ok, datetime} <- NaiveDateTime.new(date, time) do
-        datetime
-      else
-        {:date, {:error, _}} -> {:error, "Date is invalid: #{inspect(date_string)}"}
-        {:time, {:error, _}} -> {:error, "Time is invalid: #{inspect(time_string)}"}
-      end
+    def to_datetime(%{date: date, time: time}) do
+      NaiveDateTime.new(date, time)
     end
   end
 
@@ -113,7 +115,7 @@ defmodule DataSchemaTest do
 
       blog = DataSchema.to_struct(input, BlagPost)
 
-      assert blog == {:error, "Date is invalid: \"not a date\""}
+      assert blog == {:error, :invalid_format}
     end
 
     defmodule FieldError do
@@ -131,7 +133,7 @@ defmodule DataSchemaTest do
 
     defmodule Has do
       import DataSchema, only: [data_schema: 1]
-      data_schema(field: {:integer, "int", fn x -> {:error, x} end})
+      data_schema(field: {:integer, "int", fn x -> {:ok, x} end})
 
       def cast(nil), do: :error
 
@@ -148,10 +150,13 @@ defmodule DataSchemaTest do
     test "errors on :has_one" do
       # nil is an error if the field is not optional which they aren't by default.
       # But if they _are_ optional then how do we make it not an error?
-      # input = %{"thing" => nil} needs to work for both cases.
       input = %{"thing" => %{}}
       blog = DataSchema.to_struct(input, HasOneError)
-      assert blog == {:error, "non null field was found to be null!"}
+      assert blog == {:error, "Got null for a field that can't be null."}
+
+      input = %{"thing" => nil}
+      blog = DataSchema.to_struct(input, HasOneError)
+      assert blog == {:error, "no"}
     end
 
     defmodule ListOfError do
@@ -167,7 +172,7 @@ defmodule DataSchemaTest do
 
     defmodule Many do
       import DataSchema, only: [data_schema: 1]
-      data_schema(field: {:thing, "thing", fn _ -> :error end})
+      data_schema(field: {:thing, "thing", fn x -> {:ok, x} end})
     end
 
     defmodule HasManyError do
@@ -178,7 +183,7 @@ defmodule DataSchemaTest do
     test "errors on has_many" do
       input = %{"things" => [%{}]}
       blog = DataSchema.to_struct(input, HasManyError)
-      assert blog == {:error, "non null field was found to be null!"}
+      assert blog == {:error, "Got null for a field that can't be null."}
     end
   end
 

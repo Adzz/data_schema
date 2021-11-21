@@ -39,7 +39,11 @@ defmodule DataSchemaXmlTest do
 
   defmodule SteamedHam do
     require DataSchema
-    @datetime_fields %{date: "./ReadyDate/text()", time: "./ReadyTime/text()"}
+
+    @datetime_fields [
+      field: {:date, "./ReadyDate/text()", &Date.from_iso8601/1},
+      field: {:time, "./ReadyTime/text()", &Time.from_iso8601/1}
+    ]
     DataSchema.data_schema(
       [
         field: {:type, "./Type/text()", &DataSchemaXmlTest.to_upcase(&1)},
@@ -51,8 +55,6 @@ defmodule DataSchemaXmlTest do
     )
 
     def datetime(%{date: date, time: time}) do
-      date = Date.from_iso8601!(date)
-      time = Time.from_iso8601!(time)
       DateTime.new(date, time)
     end
   end
@@ -63,7 +65,7 @@ defmodule DataSchemaXmlTest do
     DataSchema.data_schema(
       [
         field: {:type, "./Type/text()", &DataSchemaXmlTest.to_upcase/1, optional?: true},
-        list_of: {:salads, "./Salads/Salad", Salad, optional?: true},
+        has_many: {:salads, "./Salads/Salad", Salad, optional?: true},
         has_one: {:sauce, "./Sauce", Sauce, optional?: true}
       ],
       XpathAccessor
@@ -102,11 +104,12 @@ defmodule DataSchemaXmlTest do
              field: {:type, "./Type/text()", &DataSchemaXmlTest.to_upcase/1},
              has_many: {:salads, "./Salads/Salad", DataSchemaXmlTest.Salad},
              has_one: {:sauce, "./Sauce", DataSchemaXmlTest.Sauce},
-             aggregate: {
-               :ready_datetime,
-               %{date: "./ReadyDate/text()", time: "./ReadyTime/text()"},
-               &DataSchemaXmlTest.SteamedHam.datetime/1
-             }
+             aggregate:
+               {:ready_datetime,
+                [
+                  field: {:date, "./ReadyDate/text()", &Date.from_iso8601/1},
+                  field: {:time, "./ReadyTime/text()", &Time.from_iso8601/1}
+                ], &DataSchemaXmlTest.SteamedHam.datetime/1}
            ]
   end
 
@@ -118,7 +121,7 @@ defmodule DataSchemaXmlTest do
       assert burger.type == "MEDIUM RARE"
     end
 
-    test "casts all list_of fields" do
+    test "casts all has_many fields" do
       {:ok, burger} = DataSchema.to_struct(xml(), SteamedHam)
 
       assert burger.__struct__ == DataSchemaXmlTest.SteamedHam

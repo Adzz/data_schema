@@ -184,22 +184,133 @@ defmodule DataSchema do
                                   "Check the docs in DataSchema for more " <>
                                   "information on how fields should be written."
 
-                        {type, {_, _xpath, _cast_fn}}, acc
+                        {type, {_, _, _}}, acc
                         when type not in [:field, :has_one, :has_many, :aggregate, :list_of] ->
                           raise DataSchema.InvalidSchemaError,
                                 "Field #{inspect(type)} is not a valid field type.\n" <>
                                   "Check the docs in DataSchema for more " <>
                                   "information on how fields should be written."
 
+                        {:aggregate, {_, schema, _, _}}, acc
+                        when not is_atom(schema) and not is_list(schema) ->
+                          raise DataSchema.InvalidSchemaError, """
+                          An :aggregate field should provide a nested schema to describe the data to be extracted.
+                          This can be a module of another DataSchema or a list of schema fields:
+
+                              defmodule Thing do
+                                import DataSchema, only: [data_schema: 1]
+
+                                @fields [
+                                  field: {:date, "date", &Date.from_iso8601/1},
+                                  field: {:time, "time", &Time.from_iso8601/1}
+                                ]
+
+                                data_schema([
+                                  aggregate: {:datetime, @fields, &Thing.to_datetime/1}
+                                ])
+
+                                def to_datetime(%{date: date, time: time}) do
+                                  NaiveDateTime.new(date, time)
+                                end
+                              end
+
+                          Or:
+
+                              defmodule Thing do
+                                import DataSchema, only: [data_schema: 1]
+
+                                defmodule DateTime do
+                                  import DataSchema, only: [data_schema: 1]
+
+                                  data_schema([
+                                    field: {:date, "date", &Date.from_iso8601/1},
+                                    field: {:time, "time", &Time.from_iso8601/1}
+                                  ])
+                                end
+
+                                data_schema([
+                                  aggregate: {:datetime, DateTime, &Thing.to_datetime/1}
+                                ])
+
+                                def to_datetime(%{date: date, time: time}) do
+                                  NaiveDateTime.new(date, time)
+                                end
+                              end
+
+                          Provided schema: #{inspect(schema)}
+                          """
+
+                        {:aggregate, {_, schema, _}}, acc
+                        when not is_atom(schema) and not is_list(schema) ->
+                          raise DataSchema.InvalidSchemaError, """
+                          An :aggregate field should provide a nested schema to describe the data to be extracted.
+                          This can be a module of another DataSchema or a list of schema fields:
+
+                              defmodule Thing do
+                                import DataSchema, only: [data_schema: 1]
+
+                                @fields [
+                                  field: {:date, "date", &Date.from_iso8601/1},
+                                  field: {:time, "time", &Time.from_iso8601/1}
+                                ]
+
+                                data_schema([
+                                  aggregate: {:datetime, @mapping, &Thing.to_datetime/1}
+                                ])
+
+                                def to_datetime(%{date: date, time: time}) do
+                                  NaiveDateTime.new(date, time)
+                                end
+                              end
+
+                          Or:
+
+                              defmodule Thing do
+                                import DataSchema, only: [data_schema: 1]
+
+                                defmodule DateTime do
+                                  import DataSchema, only: [data_schema: 1]
+
+                                  data_schema([
+                                    field: {:date, "date", &Date.from_iso8601/1},
+                                    field: {:time, "time", &Time.from_iso8601/1}
+                                  ])
+                                end
+
+                                data_schema([
+                                  aggregate: {:datetime, DateTime, &Thing.to_datetime/1}
+                                ])
+
+                                def to_datetime(%{date: date, time: time}) do
+                                  NaiveDateTime.new(date, time)
+                                end
+                              end
+
+                          Provided schema: #{inspect(schema)}
+                          """
+
                         {type, {_, _, module, _}}, acc
-                        when type in [:has_one, :has_many] and not is_atom(module) ->
+                        when type in [:has_one, :has_many] and not is_atom(module) and
+                               not is_list(module) ->
                           message = """
                           #{type} fields require a DataSchema module as their casting function:
 
                               data_schema([
-                                has_one: {:foo, "path", Foo}
+                                #{type}: {:foo, "path", Foo}
                                 #                       ^^
                                 # Should be a DataSchema module
+                              ])
+
+                          Or an inline list of fields like so:
+
+                              @foo_fields [
+                                field: {:bar, "bar", &{:ok, to_string(&1)}}
+                              ]
+
+                              data_schema([
+                                #{type}: {:foo, "path", @foo_fields}
+                                #                       ^^
+                                # Or a list of fields inline.
                               ])
 
                           You provided the following as a schema: #{inspect(module)}.
@@ -209,14 +320,27 @@ defmodule DataSchema do
                           raise DataSchema.InvalidSchemaError, message: message
 
                         {type, {_, _, module}}, acc
-                        when type in [:has_one, :has_many] and not is_atom(module) ->
+                        when type in [:has_one, :has_many] and not is_atom(module) and
+                               not is_list(module) ->
                           message = """
                           #{type} fields require a DataSchema module as their casting function:
 
                               data_schema([
-                                has_one: {:foo, "path", Foo}
-                                #                       ^^
+                                #{type}: {:foo, "path", Foo}
+                                #                        ^^
                                 # Should be a DataSchema module
+                              ])
+
+                          Or an inline list of fields like so:
+
+                              @foo_fields [
+                                field: {:bar, "bar", &{:ok, to_string(&1)}}
+                              ]
+
+                              data_schema([
+                                #{type}: {:foo, "path", @foo_fields}
+                                #                          ^^
+                                # Or a list of fields inline.
                               ])
 
                           You provided the following as a schema: #{inspect(module)}.
@@ -289,17 +413,43 @@ defmodule DataSchema do
     to_struct(data, schema, opts)
   end
 
-  def to_struct(data, schema, _opts) when is_atom(schema) do
+  def to_struct(data, schema, opts) when is_atom(schema) do
     if !function_exported?(schema, :__data_schema_fields, 0) do
       raise "Provided schema is not a valid DataSchema: #{inspect(schema)}"
     end
 
+    fields = schema.__data_schema_fields()
+    accessor = schema.__data_accessor()
+    struct = struct(schema, %{})
+    do_to_struct(fields, accessor, struct, data, opts)
+  end
+
+  defp do_to_struct(fields, accessor, struct, data, opts) do
     # basically two different fns if we do collect errors. So we will come back to this
     # get fail fast working first.
     # collect_errors? = Keyword.get(opts, :collect_errors, false)
-    accessor = schema.__data_accessor()
 
-    Enum.reduce_while(schema.__data_schema_fields(), struct(schema, %{}), fn
+    Enum.reduce_while(fields, struct, fn
+      {:aggregate, {field, schema_mod, cast_fn, field_opts}}, struct when is_atom(schema_mod) ->
+        nullable? = Keyword.get(field_opts, :optional?, false)
+        fields = schema_mod.__data_schema_fields()
+        accessor = schema_mod.__data_accessor()
+        aggregate = struct(schema_mod, %{})
+        aggregate(fields, accessor, data, opts, field, cast_fn, aggregate, struct, nullable?)
+
+      {:aggregate, {field, schema_mod, cast_fn}}, struct when is_atom(schema_mod) ->
+        fields = schema_mod.__data_schema_fields()
+        accessor = schema_mod.__data_accessor()
+        aggregate = struct(schema_mod, %{})
+        aggregate(fields, accessor, data, opts, field, cast_fn, aggregate, struct, false)
+
+      {:aggregate, {field, fields, cast_fn, field_opts}}, struct when is_list(fields) ->
+        nullable? = Keyword.get(field_opts, :optional?, false)
+        aggregate(fields, accessor, data, opts, field, cast_fn, %{}, struct, nullable?)
+
+      {:aggregate, {field, fields, cast_fn}}, struct when is_list(fields) ->
+        aggregate(fields, accessor, data, opts, field, cast_fn, %{}, struct, false)
+
       {field_type, {field, paths, cast_fn, field_opts}}, struct ->
         nullable? = Keyword.get(field_opts, :optional?, false)
         process_field({field_type, {field, paths, cast_fn}}, struct, nullable?, accessor, data)
@@ -316,196 +466,158 @@ defmodule DataSchema do
     end
   end
 
-  defp process_field(
-         {:aggregate, {field, %{} = paths, cast_fn}},
-         struct,
-         true = _nullable,
-         accessor,
-         data
-       ) do
-    values_map =
-      Map.new(paths, fn {key, path} ->
-        {key, accessor.aggregate(data, path)}
-      end)
+  defp process_field({:field, {field, path, cast_fn}}, struct, nullable?, accessor, data) do
+    case call_cast_fn(cast_fn, accessor.field(data, path)) do
+      {:ok, nil} ->
+        if nullable? do
+          {:cont, Map.put(struct, field, nil)}
+        else
+          {:halt, {:error, "Got null for a field that can't be null."}}
+        end
 
-    aggregate(values_map, field, cast_fn, struct)
-  end
+      {:ok, value} ->
+        {:cont, Map.put(struct, field, value)}
 
-  defp process_field(
-         {:aggregate, {field, %{} = paths, cast_fn}},
-         struct,
-         false = _nullable,
-         accessor,
-         data
-       ) do
-    Enum.reduce_while(paths, %{}, fn {key, path}, acc ->
-      case accessor.aggregate(data, path) do
-        # probably want the path to be the full path of all previous keys too but MEH for now
-        # ALSO how would we even collect errors. Have to reduce a different thing, a struct that gets
-        # thrown and an error.
-        nil -> {:halt, {:error, "non null field was nil: #{path}"}}
-        data -> {:cont, Map.put(acc, key, data)}
-      end
-    end)
-    |> case do
-      {:error, _} = error -> {:halt, error}
-      values_map -> aggregate(values_map, field, cast_fn, struct)
+      {:error, _} = error ->
+        {:halt, error}
+
+      :error ->
+        {:halt, :error}
     end
   end
 
-  defp process_field({:field, {field, path, cast_fn}}, struct, true = _nullable, accessor, data) do
-    field(accessor.field(data, path), field, cast_fn, struct)
-  end
-
-  defp process_field({:field, {field, path, cast_fn}}, struct, false = _nullable, accessor, data) do
-    case accessor.field(data, path) do
-      # need a better error message probs
-      nil -> {:halt, {:error, "non null field was found to be null!"}}
-      data -> field(data, field, cast_fn, struct)
-    end
-  end
-
-  defp process_field(
-         {:has_one, {field, path, cast_module}},
-         struct,
-         true = _nullable,
-         accessor,
-         data
-       ) do
+  defp process_field({:has_one, {field, path, cast_module}}, struct, nullable?, accessor, data) do
     case accessor.has_one(data, path) do
-      nil -> {:cont, %{struct | field => nil}}
-      value -> has_one(value, field, cast_module, struct)
-    end
-  end
+      nil ->
+        if nullable? do
+          # Should we still call cast fn? There is no cast to happen here as cast is to_struct
+          # which happens automatically.
+          {:cont, Map.put(struct, field, nil)}
+        else
+          {:halt, {:error, "no"}}
+        end
 
-  defp process_field(
-         {:has_one, {field, path, cast_module}},
-         struct,
-         false = _nullable,
-         accessor,
-         data
-       ) do
-    case accessor.has_one(data, path) do
-      nil -> {:halt, {:error, "no"}}
-      value -> has_one(value, field, cast_module, struct)
+      value ->
+        case to_struct(value, cast_module) do
+          # It's not possible for to_struct to return nil so we don't handle that case here
+          {:ok, value} -> {:cont, Map.put(struct, field, value)}
+          {:error, _} = error -> {:halt, error}
+          :error -> {:halt, :error}
+        end
     end
   end
 
   defp process_field(
          {:has_many, {field, path, cast_module}},
          struct,
-         true = _nullable,
-         accessor,
-         data
-       ) do
-    case accessor.list_of(data, path) do
-      nil -> {:cont, %{struct | field => nil}}
-      data -> has_many(data, field, cast_module, struct)
-    end
-  end
-
-  defp process_field(
-         {:has_many, {field, path, cast_module}},
-         struct,
-         false = _nullable,
+         nullable?,
          accessor,
          data
        ) do
     case accessor.has_many(data, path) do
-      nil -> {:halt, {:error, "no"}}
-      data -> has_many(data, field, cast_module, struct)
+      nil ->
+        if nullable? do
+          {:cont, Map.put(struct, field, nil)}
+        else
+          {:halt, {:error, "null for non null field"}}
+        end
+
+      data ->
+        data
+        |> Enum.reduce_while([], fn datum, acc ->
+          # It's not possible for to_struct to return nil so we don't worry about it here.
+          case to_struct(datum, cast_module) do
+            {:ok, struct} -> {:cont, [struct | acc]}
+            {:error, _} = error -> {:halt, error}
+            :error -> {:halt, :error}
+          end
+        end)
+        |> case do
+          {:error, _} = error ->
+            {:halt, error}
+
+          :error ->
+            {:halt, :error}
+
+          relations when is_list(relations) ->
+            {:cont, %{struct | field => :lists.reverse(relations)}}
+        end
     end
   end
 
-  defp process_field(
-         {:list_of, {field, path, cast_module}},
-         struct,
-         true = _nullable,
-         accessor,
-         data
-       ) do
+  defp process_field({:list_of, {field, path, cast_module}}, struct, nullable?, accessor, data) do
     case accessor.list_of(data, path) do
-      nil -> {:cont, %{struct | field => nil}}
-      data -> list_of(data, field, cast_module, struct)
+      nil ->
+        if nullable? do
+          {:cont, Map.put(struct, field, nil)}
+        else
+          {:halt, {:error, "null for non null field."}}
+        end
+
+      data ->
+        data
+        |> Enum.reduce_while([], fn datum, acc ->
+          case call_cast_fn(cast_module, datum) do
+            {:ok, nil} ->
+              if nullable? do
+                # Do we add nil or do we remove them? a list of nils seeeeems bad. But is it
+                # better to not remove information...?
+                # {:cont, [nil | acc]}
+
+                {:cont, acc}
+              else
+                {:halt, {:error, "Got null for a field that can't be null."}}
+              end
+
+            {:ok, value} ->
+              {:cont, [value | acc]}
+
+            {:error, _} = error ->
+              {:halt, error}
+
+            :error ->
+              {:halt, :error}
+          end
+        end)
+        |> case do
+          {:error, _} = error ->
+            {:halt, error}
+
+          :error ->
+            {:halt, :error}
+
+          relations when is_list(relations) ->
+            {:cont, %{struct | field => :lists.reverse(relations)}}
+        end
     end
   end
 
-  defp process_field(
-         {:list_of, {field, path, cast_module}},
-         struct,
-         false = _nullable,
-         accessor,
-         data
-       ) do
-    case accessor.list_of(data, path) do
-      nil -> {:halt, {:error, "no"}}
-      value -> list_of(value, field, cast_module, struct)
-    end
-  end
-
-  defp aggregate(values_map, field, cast_fn, struct) do
-    case call_cast_fn(cast_fn, values_map) do
-      {:ok, value} -> {:cont, %{struct | field => value}}
-      {:error, _} = error -> {:halt, error}
-      :error -> {:halt, :error}
-    end
-  end
-
-  defp field(data, field, cast_fn, struct) do
-    case call_cast_fn(cast_fn, data) do
-      {:ok, value} -> {:cont, %{struct | field => value}}
-      {:error, _} = error -> {:halt, error}
-      :error -> {:halt, :error}
-    end
-  end
-
-  defp has_one(data, field, cast_module, struct) do
-    case to_struct(data, cast_module) do
-      {:ok, value} -> {:cont, %{struct | field => value}}
-      {:error, _} = error -> {:halt, error}
-      :error -> {:halt, :error}
-    end
-  end
-
-  defp has_many(data, field, cast_module, struct) do
-    data
-    |> Enum.reduce_while([], fn datum, acc ->
-      case to_struct(datum, cast_module) do
-        {:ok, struct} -> {:cont, [struct | acc]}
-        {:error, _} = error -> {:halt, error}
-        :error -> {:halt, :error}
-      end
-    end)
-    |> case do
-      {:error, _} = error ->
-        {:halt, error}
-
+  defp aggregate(fields, accessor, data, opts, field, cast_fn, aggregate, parent, nullable?) do
+    case do_to_struct(fields, accessor, aggregate, data, opts) do
       :error ->
         {:halt, :error}
 
-      relations when is_list(relations) ->
-        {:cont, %{struct | field => :lists.reverse(relations)}}
-    end
-  end
-
-  defp list_of(data, field, cast_module, struct) do
-    data
-    |> Enum.reduce_while([], fn datum, acc ->
-      case call_cast_fn(cast_module, datum) do
-        {:ok, value} -> {:cont, [value | acc]}
-        {:error, _} = error -> {:halt, error}
-        :error -> {:halt, :error}
-      end
-    end)
-    |> case do
       {:error, _} = error ->
         {:halt, error}
 
-      :error ->
-        {:halt, :error}
+      {:ok, values_map} ->
+        case call_cast_fn(cast_fn, values_map) do
+          {:ok, nil} ->
+            if nullable? do
+              {:cont, Map.put(parent, field, nil)}
+            else
+              {:halt, {:error, "Got null for a field that can't be null."}}
+            end
 
-      relations when is_list(relations) ->
-        {:cont, %{struct | field => :lists.reverse(relations)}}
+          {:ok, value} ->
+            {:cont, Map.put(parent, field, value)}
+
+          {:error, _} = error ->
+            {:halt, error}
+
+          :error ->
+            {:halt, :error}
+        end
     end
   end
 

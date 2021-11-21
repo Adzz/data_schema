@@ -1,3 +1,22 @@
+# Todo List
+
+- inline schema fields for has_one / has_many - Probably not doing as need a nice way to add the name of the struct when it is inline... I don't think there is one particularly. The other option is to just make a map for inline schemas but seems worse for some reason. Think it's better than supplying a struct name though.
+- update docs
+- Remove data_schema/2 and supply the accessor as a module attribute instead
+- Fix the doc below to make sense.
+- make an DataSchema.Error struct or similar.
+- collect_errors version of to_struct using the above error struct.
+- Livebook for the repo (make the guides livebooks that would mean they are easier to test too.)
+
+
+
+
+
+
+#### Historical context on why has_one / has_many are their own fields
+
+You might think they could be encompassed by field and list_of but there are subtle reasons why not. One day I may fully explain the reasoning properly but for now here are the ramblings as I figured it out. I will make it make more sense later.
+
  if we recur that means list has to be a nested schema
  if we dont then there is the confusion with nested schemas implementing
  to_struct with different options from the usual.
