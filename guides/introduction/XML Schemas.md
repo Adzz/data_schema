@@ -1,4 +1,4 @@
-### Transforming XML with XML schemas
+### XML Schemas
 
 Let's imagine that we have some XML that we wish to turn into a struct. What would it require to enable that? First a new Xpath data accessor:
 
