@@ -280,7 +280,7 @@ defmodule DataSchemaTest do
 
       blog = DataSchema.to_struct(input, BlagPost)
 
-      assert blog == {:error, :invalid_format}
+      assert blog == {:error, %DataSchema.Errors{errors: [post_datetime: :invalid_format]}}
     end
 
     defmodule FieldError do
@@ -317,11 +317,21 @@ defmodule DataSchemaTest do
       # But if they _are_ optional then how do we make it not an error?
       input = %{"thing" => %{}}
       blog = DataSchema.to_struct(input, HasOneError)
-      assert blog == {:error, "Got null for a field that can't be null."}
+
+      assert blog ==
+               {:error,
+                %DataSchema.Errors{
+                  errors: [integer: "Field was marked as not null but was found to be null."]
+                }}
 
       input = %{"thing" => nil}
       blog = DataSchema.to_struct(input, HasOneError)
-      assert blog == {:error, "no"}
+
+      assert blog ==
+               {:error,
+                %DataSchema.Errors{
+                  errors: [thing: "Field was marked as not null but was found to be null."]
+                }}
     end
 
     defmodule ListOfError do
@@ -348,7 +358,12 @@ defmodule DataSchemaTest do
     test "errors on has_many" do
       input = %{"things" => [%{}]}
       blog = DataSchema.to_struct(input, HasManyError)
-      assert blog == {:error, "Got null for a field that can't be null."}
+
+      assert blog ==
+               {:error,
+                %DataSchema.Errors{
+                  errors: [thing: "Field was marked as not null but was found to be null."]
+                }}
     end
   end
 

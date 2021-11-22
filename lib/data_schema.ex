@@ -88,6 +88,7 @@ defmodule DataSchema do
       }
   """
   @available_types [:field, :has_one, :has_many, :aggregate, :list_of]
+  @non_null_error_message "Field was marked as not null but was found to be null."
 
   @doc """
   A macro that creates a data schema. By default all struct fields are required but you
@@ -491,7 +492,8 @@ defmodule DataSchema do
         if nullable? do
           {:cont, Map.put(struct, field, nil)}
         else
-          {:halt, {:error, "Got null for a field that can't be null."}}
+          # Instead of halt we would have to
+          {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
         end
 
       {:ok, value} ->
@@ -513,7 +515,7 @@ defmodule DataSchema do
           # which happens automatically.
           {:cont, Map.put(struct, field, nil)}
         else
-          {:halt, {:error, "no"}}
+          {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
         end
 
       value ->
@@ -538,7 +540,7 @@ defmodule DataSchema do
         if nullable? do
           {:cont, Map.put(struct, field, nil)}
         else
-          {:halt, {:error, "null for non null field"}}
+          {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
         end
 
       data ->
@@ -570,7 +572,7 @@ defmodule DataSchema do
         if nullable? do
           {:cont, Map.put(struct, field, nil)}
         else
-          {:halt, {:error, "null for non null field."}}
+          {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
         end
 
       data ->
@@ -599,8 +601,8 @@ defmodule DataSchema do
           end
         end)
         |> case do
-          {:error, _} = error ->
-            {:halt, error}
+          {:error, error} ->
+            {:halt, {:error, %DataSchema.Errors{errors: [{field, error}]}}}
 
           :error ->
             {:halt, :error}
@@ -616,8 +618,8 @@ defmodule DataSchema do
       :error ->
         {:halt, :error}
 
-      {:error, _} = error ->
-        {:halt, error}
+      {:error, error} ->
+        {:halt, {:error, %DataSchema.Errors{errors: [{field, error}]}}}
 
       {:ok, values_map} ->
         case call_cast_fn(cast_fn, values_map) do
@@ -625,19 +627,26 @@ defmodule DataSchema do
             if nullable? do
               {:cont, Map.put(parent, field, nil)}
             else
-              {:halt, {:error, "Got null for a field that can't be null."}}
+              {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
             end
 
           {:ok, value} ->
             {:cont, Map.put(parent, field, value)}
 
-          {:error, _} = error ->
-            {:halt, error}
+          {:error, error} ->
+            # This is when the cast fn returns null or some kind of error message. would
+            # it ever be a DataSchema.Errors returned from cast? probs not and in fact
+            # currently the behaviour says this can be anything..... hmmmmmmm.
+            {:halt, {:error, %DataSchema.Errors{errors: [{field, error}]}}}
 
           :error ->
             {:halt, :error}
         end
     end
+  end
+
+  defp null_error(error, field) do
+    DataSchema.Errors.add_error(error, {field, @non_null_error_message})
   end
 
   # This just lets us use either a module name for the data type OR a one arity fn.

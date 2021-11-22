@@ -9,5 +9,6 @@ defmodule DataSchema.CastBehaviour do
   you can optionally provide a message that will be returned if `DataSchema.to_struct/2`
   fails.
   """
-  @callback cast(any()) :: {:ok, term()} | :error | {:error, any()}
+  @callback cast(any()) ::
+              {:ok, term()} | :error | {:error, String.t()} | {:error, DataSchema.Errors.t()}
 end
