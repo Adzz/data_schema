@@ -81,12 +81,8 @@ defmodule BlogPost do
     field: {:content, "/Blog/Content/text()", &{:ok, to_string(&1)}},
     has_many: {:comments, "//Comment", Comment},
     has_one: {:draft, "/Blog/Draft", DraftPost},
-    aggregate: {:post_datetime, @datetime_fields, &BlogPost.to_datetime/1},
+    aggregate: {:post_datetime, @datetime_fields, &NaiveDateTime.new(&1.date, &1.time)},
   ])
-
-  def to_datetime(%{date: date, time: time}) do
-    NaiveDateTime.new(date, time)
-  end
 end
 ```
 

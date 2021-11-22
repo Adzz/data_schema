@@ -317,18 +317,16 @@ defmodule BlogPost do
   import DataSchema, only: [data_schema: 1]
 
   @data_accessor XpathAccessor
+  @datetime_fields [
+    field: {:date, "/Blog/@date", &Date.from_iso8601/1},
+    field: {:time, "/Blog/@time", &Time.from_iso8601/1},
+  ]
   data_schema([
     field: {:content, "/Blog/Content/text()", &{:ok, to_string(&1)}},
     has_many: {:comments, "//Comment", Comment},
     has_one: {:draft, "/Blog/Draft", DraftPost},
-    aggregate: {:post_datetime, %{date: "/Blog/@date", time: "/Blog/@time"}, &BlogPost.to_datetime/1},
+    aggregate: {:post_datetime, @datetime_fields, &NaiveDateTime.new(&1.date, &1.time)},
   ])
-
-  def to_datetime(%{date: date_string, time: time_string}) do
-    date = Date.from_iso8601!(date_string)
-    time = Time.from_iso8601!(time_string)
-    NaiveDateTime.new(date, time)
-  end
 end
 ```
 
