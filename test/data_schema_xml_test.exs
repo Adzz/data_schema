@@ -8,32 +8,24 @@ defmodule DataSchemaXmlTest do
   defmodule Cheese do
     require DataSchema
 
-    DataSchema.data_schema(
-      [
-        field: {:mouldy?, "./@Mouldy", fn "true" -> {:ok, true} end}
-      ],
-      XpathAccessor
-    )
+    @data_accessor XpathAccessor
+    DataSchema.data_schema(field: {:mouldy?, "./@Mouldy", fn "true" -> {:ok, true} end})
   end
 
   defmodule Salad do
     require DataSchema
 
+    @data_accessor XpathAccessor
     DataSchema.data_schema(
-      [
-        field: {:name, "./@Name", &{:ok, &1}},
-        has_many: {:cheese_slices, "./Cheese", Cheese}
-      ],
-      # This should be a module attr that we get somehow. rather than passing to
-      # the schema function.
-      XpathAccessor
+      field: {:name, "./@Name", &{:ok, &1}},
+      has_many: {:cheese_slices, "./Cheese", Cheese}
     )
   end
 
   defmodule Sauce do
     require DataSchema
-
-    DataSchema.data_schema([field: {:name, "./@Name", &{:ok, &1}}], XpathAccessor)
+    @data_accessor XpathAccessor
+    DataSchema.data_schema(field: {:name, "./@Name", &{:ok, &1}})
     def cast(xmerl), do: {:ok, DataSchema.to_struct(xmerl, __MODULE__)}
   end
 
@@ -44,14 +36,12 @@ defmodule DataSchemaXmlTest do
       field: {:date, "./ReadyDate/text()", &Date.from_iso8601/1},
       field: {:time, "./ReadyTime/text()", &Time.from_iso8601/1}
     ]
+    @data_accessor XpathAccessor
     DataSchema.data_schema(
-      [
-        field: {:type, "./Type/text()", &DataSchemaXmlTest.to_upcase(&1)},
-        has_many: {:salads, "./Salads/Salad", Salad},
-        has_one: {:sauce, "./Sauce", Sauce},
-        aggregate: {:ready_datetime, @datetime_fields, &__MODULE__.datetime/1}
-      ],
-      XpathAccessor
+      field: {:type, "./Type/text()", &DataSchemaXmlTest.to_upcase(&1)},
+      has_many: {:salads, "./Salads/Salad", Salad},
+      has_one: {:sauce, "./Sauce", Sauce},
+      aggregate: {:ready_datetime, @datetime_fields, &__MODULE__.datetime/1}
     )
 
     def datetime(%{date: date, time: time}) do
@@ -61,14 +51,11 @@ defmodule DataSchemaXmlTest do
 
   defmodule OptionalTest do
     require DataSchema
-
+    @data_accessor XpathAccessor
     DataSchema.data_schema(
-      [
-        field: {:type, "./Type/text()", &DataSchemaXmlTest.to_upcase/1, optional?: true},
-        has_many: {:salads, "./Salads/Salad", Salad, optional?: true},
-        has_one: {:sauce, "./Sauce", Sauce, optional?: true}
-      ],
-      XpathAccessor
+      field: {:type, "./Type/text()", &DataSchemaXmlTest.to_upcase/1, optional?: true},
+      has_many: {:salads, "./Salads/Salad", Salad, optional?: true},
+      has_one: {:sauce, "./Sauce", Sauce, optional?: true}
     )
   end
 

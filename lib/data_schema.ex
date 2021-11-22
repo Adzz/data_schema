@@ -89,19 +89,6 @@ defmodule DataSchema do
   """
 
   @doc """
-  Defines a data schema with the provided fields. Uses the default `DataSchema.MapAccessor`
-  as the accessor, meaning it will expect the source data to be an elixir map and will
-  use `Map.get/2` to access the required values in the source data.
-
-  See `DataSchema.data_schema/2` for more details on what fields should look like.
-  """
-  defmacro data_schema(fields) do
-    quote do
-      DataSchema.data_schema(unquote(fields), DataSchema.MapAccessor)
-    end
-  end
-
-  @doc """
   A macro that creates a data schema. By default all struct fields are required but you
   can specify that a field be optional by passing the correct option in. See the Options
   section below for more.
@@ -165,12 +152,22 @@ defmodule DataSchema do
         fillings: ["fake stake", "sauce", "sweetcorn"],
       }
   """
-  defmacro data_schema(fields, data_accessor) do
+  defmacro data_schema(fields) do
     quote do
       @doc false
       def __data_schema_fields, do: unquote(fields)
-      @doc false
-      def __data_accessor, do: unquote(data_accessor)
+      # __MODULE__ refers to the module that this macro is used in - ie the schema module.
+      # We add a __data_accessor function so to_struct can call it, we default to a Map
+      # accessor if no accessor is provided.
+      if Module.has_attribute?(__MODULE__, :data_accessor) do
+        @doc false
+        def __data_accessor do
+          @data_accessor
+        end
+      else
+        @doc false
+        def __data_accessor, do: DataSchema.MapAccessor
+      end
 
       @enforce_keys Enum.reduce(
                       unquote(fields),

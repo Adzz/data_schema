@@ -119,34 +119,37 @@ DataSchema.to_struct(source_data, BlogPost)
 
 ## Different Source Data Types
 
-As we mentioned before we want to be able to handle multiple different kinds of source data in our schemas. For each type of source data we want to be able to specify how you access the data for each field type. We do that by providing a "data accessor" (a module that implements the `DataSchema.DataAccessBehaviour`) when we create the schema. By default if you do not provide a specific data accessor module we use `DataSchema.MapAccessor`. That means the above example is equivalent to doing the following:
+As we mentioned before we want to be able to handle multiple different kinds of source data in our schemas. For each type of source data we want to be able to specify how you access the data for each field type. We do that by providing a "data accessor" (a module that implements the `DataSchema.DataAccessBehaviour`) when we create the schema. We do this by providing a `@data_accessor` on the schema. By default if you do not provide this module attribute we use `DataSchema.MapAccessor`. That means the above example is equivalent to doing the following:
 
 ```elixir
 defmodule DraftPost do
-  import DataSchema, only: [data_schema: 2]
+  import DataSchema, only: [data_schema: 1]
 
+  @data_accessor DataSchema.MapAccessor
   data_schema([
     field: {:content, "content", &{:ok, to_string(&1)}}
-  ], DataSchema.MapAccessor)
+  ])
 end
 
 defmodule Comment do
-  import DataSchema, only: [data_schema: 2]
+  import DataSchema, only: [data_schema: 1]
 
+  @data_accessor DataSchema.MapAccessor
   data_schema([
     field: {:text, "text", &{:ok, to_string(&1)}}
-  ], DataSchema.MapAccessor)
+  ])
 end
 
 defmodule BlogPost do
-  import DataSchema, only: [data_schema: 2]
+  import DataSchema, only: [data_schema: 1]
 
+  @data_accessor DataSchema.MapAccessor
   data_schema([
     field: {:content, "content", &{:ok, to_string(&1)}},
     has_many: {:comments, "comments", Comment},
     has_one: {:draft, "draft", DraftPost},
     aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1},
-  ], DataSchema.MapAccessor)
+  ])
 
   def to_datetime(%{date: date, time: time}) do
     date = Date.from_iso8601!(date)
@@ -183,54 +186,79 @@ defmodule DataSchema.MapAccessor do
 end
 ```
 
-We can clean up our schema definitions a bit with currying. Instead of passing `DataSchema.MapAccessor` every time we create a schema we can define a helper function like so:
+When creating the struct DataSchema will call the relevant function for the field we are creating, passing it the source data and the path to the value(s) in the source. Our `DataSchema.MapAccessor` looks like this:
 
 ```elixir
-defmodule DataSchema.Map do
-  defmacro map_schema(fields) do
+defmodule DataSchema.MapAccessor do
+  @behaviour DataSchema.DataAccessBehaviour
+
+  @impl true
+  def field(data = %{}, field) do
+    Map.get(data, field)
+  end
+
+  @impl true
+  def list_of(data = %{}, field) do
+    Map.get(data, field)
+  end
+
+  @impl true
+  def has_one(data = %{}, field) do
+    Map.get(data, field)
+  end
+
+  @impl true
+  def has_many(data = %{}, field) do
+    Map.get(data, field)
+  end
+end
+```
+
+To save repeating `@data_accessor DataSchema.MapAccessor` on all of your schemas you could use a `__using__` macro like so:
+
+```elixir
+defmodule MapSchema do
+  defmacro __using__(_) do
     quote do
-      require DataSchema
-      DataSchema.data_schema(unquote(fields), DataSchema.MapAccessor)
+      import DataSchema, only: [data_schema: 1]
+      @data_accessor DataSchema.MapAccessor
+    end
+  end
+end
+```
+Then use it like so:
+
+```elixir
+defmodule DraftPost do
+  use MapSchema
+
+  data_schema([
+    field: {:content, "content", &{:ok, to_string(&1)}}
+  ])
+end
+```
+
+This means should we want to change how we access data (say we wanted to use `Map.fetch!` instead of `Map.get`) we would only need to change the accessor used in one place - inside the `__using__` macro. It also gives you a handy place to provide other functions for the structs that get created, perhaps implementing a default Inspect protocol implementation for example:
+
+```elixir
+defmodule MapSchema do
+  defmacro __using__(opts) do
+    skip_inspect_impl = Keyword.get(opts, :skip_inspect_impl, false)
+
+    quote bind_quoted: [skip_inspect_impl: skip_inspect_impl] do
+      import DataSchema, only: [data_schema: 1]
+      @data_accessor DataSchema.MapAccessor
+
+      unless skip_inspect_impl do
+        defimpl Inspect do
+          def inspect(struct, _opts) do
+            "<" <> "#{struct.__struct__}" <> ">"
+          end
+        end
+      end
     end
   end
 end
 ```
 
-Then change our schema definitions to look like this:
-
-```elixir
-defmodule DraftPost do
-  import DataSchema.Map, only: [map_schema: 1]
-
-  map_schema([
-    field: {:content, "content", &{:ok, to_string(&1)}}
-  ])
-end
-
-defmodule Comment do
-  import DataSchema.Map, only: [map_schema: 1]
-
-  map_schema([
-    field: {:text, "text", &{:ok, to_string(&1)}}
-  ])
-end
-
-defmodule BlogPost do
-  import DataSchema.Map, only: [map_schema: 1]
-
-  map_schema([
-    field: {:content, "content", &{:ok, to_string(&1)}},
-    has_many: {:comments, "comments", Comment},
-    has_one: {:draft, "draft", DraftPost},
-    aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1},
-  ])
-
-  def to_datetime(%{date: date_string, time: time_string}) do
-    date = Date.from_iso8601!(date_string)
-    time = Time.from_iso8601!(time_string)
-    NaiveDateTime.new(date, time)
-  end
-end
-```
-
-This means should we want to change how we access data (say we wanted to use `Map.fetch!` instead of `Map.get`) we would only need to change the accessor used in one place - inside `map_schema/1`.
+This could help ensure you never log sensitive fields by requiring you to explicitly implement an inspect protocol for a struct in order to see the fields in it.

@@ -27,15 +27,6 @@ defmodule XpathAccessor do
     SweetXml.xpath(data, ~x"#{path}"l)
   end
 end
-
-defmodule DataSchema.Xpath do
-  defmacro xpath_schema(fields) do
-    quote do
-      require DataSchema
-      DataSchema.data_schema(unquote(fields), XpathAccessor)
-    end
-  end
-end
 ```
 
 As we can see our accessor uses the library [Sweet XML](https://github.com/kbrw/sweet_xml) to access the XML. That means if we wanted to change the library later we would only need to alter this one module for all of our schemas to benefit from the change.
@@ -61,34 +52,39 @@ Let's define our schemas like so:
 
 ```elixir
 defmodule DraftPost do
-  import DataSchema.Xpath, only: [xpath_schema: 1]
+  import DataSchema, only: [data_schema: 1]
 
-  xpath_schema([
+  @data_accessor XpathAccessor
+  data_schema([
     field: {:content, "./Content/text()", &{:ok, to_string(&1)}}
   ])
 end
 
 defmodule Comment do
-  import DataSchema.Xpath, only: [xpath_schema: 1]
+  import DataSchema, only: [data_schema: 1]
 
-  xpath_schema([
+  @data_accessor XpathAccessor
+  data_schema([
     field: {:text, "./text()", &{:ok, to_string(&1)}}
   ])
 end
 
 defmodule BlogPost do
-  import DataSchema.Xpath, only: [xpath_schema: 1]
+  import DataSchema, only: [data_schema: 1]
 
-  xpath_schema([
+  @data_accessor XpathAccessor
+  @datetime_fields [
+    field: {:date, "/Blog/@date", &Date.from_iso8601/1},
+    field: {:time, "/Blog/@time", &Time.from_iso8601/1},
+  ]
+  data_schema([
     field: {:content, "/Blog/Content/text()", &{:ok, to_string(&1)}},
     has_many: {:comments, "//Comment", Comment},
     has_one: {:draft, "/Blog/Draft", DraftPost},
-    aggregate: {:post_datetime, %{date: "/Blog/@date", time: "/Blog/@time"}, &BlogPost.to_datetime/1},
+    aggregate: {:post_datetime, @datetime_fields, &BlogPost.to_datetime/1},
   ])
 
-  def to_datetime(%{date: date_string, time: time_string}) do
-    date = Date.from_iso8601!(date_string)
-    time = Time.from_iso8601!(time_string)
+  def to_datetime(%{date: date, time: time}) do
     NaiveDateTime.new(date, time)
   end
 end
