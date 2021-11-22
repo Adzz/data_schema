@@ -79,18 +79,16 @@ end
 defmodule BlogPost do
   import DataSchema, only: [data_schema: 1]
 
+  @date_time_fields [
+    field: {:date, "date", &Date.from_iso8601/1},
+    field: {:time, "time", &Time.from_iso8601/1}
+  ]
   data_schema([
     field: {:content, "content", &{:ok, to_string(&1)}},
     has_many: {:comments, "comments", Comment},
     has_one: {:draft, "draft", DraftPost},
-    aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1},
+    aggregate: {:post_datetime, @date_time_fields, &NaiveDateTime.new(&1.date, &1.time)},
   ])
-
-  def to_datetime(%{date: date, time: time}) do
-    date = Date.from_iso8601!(date)
-    time = Time.from_iso8601!(time)
-    NaiveDateTime.new(date, time)
-  end
 end
 ```
 
@@ -144,18 +142,16 @@ defmodule BlogPost do
   import DataSchema, only: [data_schema: 1]
 
   @data_accessor DataSchema.MapAccessor
+  @date_time_fields [
+    field: {:date, "date", &Date.from_iso8601/1},
+    field: {:time, "time", &Time.from_iso8601/1}
+  ]
   data_schema([
     field: {:content, "content", &{:ok, to_string(&1)}},
     has_many: {:comments, "comments", Comment},
     has_one: {:draft, "draft", DraftPost},
-    aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1},
+    aggregate: {:post_datetime, @date_time_fields, &NaiveDateTime.new(&1.date, &1.time)},
   ])
-
-  def to_datetime(%{date: date, time: time}) do
-    date = Date.from_iso8601!(date)
-    time = Time.from_iso8601!(time)
-    NaiveDateTime.new(date, time)
-  end
 end
 ```
 When creating the struct DataSchema will call the relevant function for the field we are creating, passing it the source data and the path to the value(s) in the source. Our `DataSchema.MapAccessor` looks like this:
