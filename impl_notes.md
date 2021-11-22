@@ -2,7 +2,7 @@
 
 - add mad tests... For optional?, not. Aggregate fields inline and not inline. For when accessor returns nil for each field and for when the cast fn returns nil for all fields and cases.
 - Fix the doc below to make sense.
-- make an DataSchema.Error struct or similar.
+- implement traverse errors if we keep the recursive error thing.
 - collect_errors version of to_struct using the above error struct.
 - Livebook for the repo (make the guides livebooks that would mean they are easier to test too.)
 - BENCHAMRK against Ecto embedded schemas? Against a simpler version of the to_struct fn?
