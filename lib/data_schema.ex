@@ -87,6 +87,7 @@ defmodule DataSchema do
         fillings: ["fake stake", "sauce", "sweetcorn"],
       }
   """
+  @available_types [:field, :has_one, :has_many, :aggregate, :list_of]
 
   @doc """
   A macro that creates a data schema. By default all struct fields are required but you
@@ -174,21 +175,27 @@ defmodule DataSchema do
                       [],
                       fn
                         # Validates the shape of the fields at compile time.
-                        {type, {_, _, _, _}}, acc
-                        when type not in [:field, :has_one, :has_many, :aggregate, :list_of] ->
-                          raise DataSchema.InvalidSchemaError,
-                                "Field #{inspect(type)} is not a valid field type.\n" <>
-                                  "Check the docs in DataSchema for more " <>
-                                  "information on how fields should be written."
+                        {type, {_, _, _, _}}, _acc
+                        when type not in unquote(@available_types) ->
+                          message = """
+                          Field #{inspect(type)} is not a valid field type.
+                          Check the docs in DataSchema for more information on how fields should be written.
+                          The available types are: #{inspect(unquote(@available_types))}
+                          """
 
-                        {type, {_, _, _}}, acc
-                        when type not in [:field, :has_one, :has_many, :aggregate, :list_of] ->
-                          raise DataSchema.InvalidSchemaError,
-                                "Field #{inspect(type)} is not a valid field type.\n" <>
-                                  "Check the docs in DataSchema for more " <>
-                                  "information on how fields should be written."
+                          raise DataSchema.InvalidSchemaError, message: message
 
-                        {:aggregate, {_, schema, _, _}}, acc
+                        {type, {_, _, _}}, _acc
+                        when type not in unquote(@available_types) ->
+                          message = """
+                          Field #{inspect(type)} is not a valid field type.
+                          Check the docs in DataSchema for more information on how fields should be written.
+                          The available types are: #{inspect(unquote(@available_types))}
+                          """
+
+                          raise DataSchema.InvalidSchemaError, message: message
+
+                        {:aggregate, {_, schema, _, _}}, _acc
                         when not is_atom(schema) and not is_list(schema) ->
                           raise DataSchema.InvalidSchemaError, """
                           An :aggregate field should provide a nested schema to describe the data to be extracted.
@@ -203,12 +210,8 @@ defmodule DataSchema do
                                 ]
 
                                 data_schema([
-                                  aggregate: {:datetime, @fields, &Thing.to_datetime/1}
+                                  aggregate: {:datetime, @fields, NaiveDateTime.new(&1.date, &1.time)}
                                 ])
-
-                                def to_datetime(%{date: date, time: time}) do
-                                  NaiveDateTime.new(date, time)
-                                end
                               end
 
                           Or:
@@ -226,18 +229,14 @@ defmodule DataSchema do
                                 end
 
                                 data_schema([
-                                  aggregate: {:datetime, DateTime, &Thing.to_datetime/1}
+                                  aggregate: {:datetime, DateTime, &NaiveDateTime.new(&1.date, &1.time)}
                                 ])
-
-                                def to_datetime(%{date: date, time: time}) do
-                                  NaiveDateTime.new(date, time)
-                                end
                               end
 
                           Provided schema: #{inspect(schema)}
                           """
 
-                        {:aggregate, {_, schema, _}}, acc
+                        {:aggregate, {_, schema, _}}, _acc
                         when not is_atom(schema) and not is_list(schema) ->
                           raise DataSchema.InvalidSchemaError, """
                           An :aggregate field should provide a nested schema to describe the data to be extracted.
@@ -252,12 +251,8 @@ defmodule DataSchema do
                                 ]
 
                                 data_schema([
-                                  aggregate: {:datetime, @mapping, &Thing.to_datetime/1}
+                                  aggregate: {:datetime, @fields, NaiveDateTime.new(&1.date, &1.time)}
                                 ])
-
-                                def to_datetime(%{date: date, time: time}) do
-                                  NaiveDateTime.new(date, time)
-                                end
                               end
 
                           Or:
@@ -275,18 +270,14 @@ defmodule DataSchema do
                                 end
 
                                 data_schema([
-                                  aggregate: {:datetime, DateTime, &Thing.to_datetime/1}
+                                  aggregate: {:datetime, DateTime, &NaiveDateTime.new(&1.date, &1.time)}
                                 ])
-
-                                def to_datetime(%{date: date, time: time}) do
-                                  NaiveDateTime.new(date, time)
-                                end
                               end
 
                           Provided schema: #{inspect(schema)}
                           """
 
-                        {type, {_, _, module, _}}, acc
+                        {type, {_, _, module, _}}, _acc
                         when type in [:has_one, :has_many] and not is_atom(module) and
                                not is_list(module) ->
                           message = """
@@ -294,7 +285,7 @@ defmodule DataSchema do
 
                               data_schema([
                                 #{type}: {:foo, "path", Foo}
-                                #                       ^^
+                                #                        ^^
                                 # Should be a DataSchema module
                               ])
 
@@ -306,7 +297,7 @@ defmodule DataSchema do
 
                               data_schema([
                                 #{type}: {:foo, "path", @foo_fields}
-                                #                       ^^
+                                #                          ^^
                                 # Or a list of fields inline.
                               ])
 
@@ -316,7 +307,7 @@ defmodule DataSchema do
 
                           raise DataSchema.InvalidSchemaError, message: message
 
-                        {type, {_, _, module}}, acc
+                        {type, {_, _, module}}, _acc
                         when type in [:has_one, :has_many] and not is_atom(module) and
                                not is_list(module) ->
                           message = """
@@ -363,9 +354,40 @@ defmodule DataSchema do
                       end
                     )
       defstruct Enum.map(unquote(fields), fn
-                  {_, {field, _, _}} -> field
-                  {_, {field, _, _, _}} -> field
-                  _ -> raise DataSchema.InvalidSchemaError
+                  {_, {field, _, _}} when not is_atom(field) ->
+                    message = """
+                    The provided struct keys must be atoms. See docs for more information:
+
+                        data_schema([
+                          field: {:foo, "foo", &{:ok, &1}}
+                        #          ^^^
+                        #   must be an atom!
+                        ])
+                    """
+
+                    raise DataSchema.InvalidSchemaError, message: message
+
+                  {_, {field, _, _, _}} when not is_atom(field) ->
+                    message = """
+                    The provided struct keys must be atoms. See docs for more information:
+
+                        data_schema([
+                          field: {:foo, "foo", &{:ok, &1}}
+                        #          ^^^
+                        #   must be an atom!
+                        ])
+                    """
+
+                    raise DataSchema.InvalidSchemaError, message: message
+
+                  {_, {field, _, _}} ->
+                    field
+
+                  {_, {field, _, _, _}} ->
+                    field
+
+                  _ ->
+                    raise DataSchema.InvalidSchemaError
                 end)
     end
   end

@@ -2,6 +2,7 @@ defmodule DataSchemaTest do
   use ExUnit.Case, async: true
 
   def to_stringg(x), do: {:ok, to_string(x)}
+  def comments(x), do: {:ok, x["text"]}
 
   defmodule DraftPost do
     import DataSchema, only: [data_schema: 1]
@@ -24,6 +25,7 @@ defmodule DataSchemaTest do
       field: {:content, "content", &DataSchemaTest.to_stringg/1},
       has_many: {:comments, "comments", Comment},
       has_one: {:draft, "draft", DraftPost},
+      list_of: {:list_of, "comments", &DataSchemaTest.comments/1},
       aggregate: {:post_datetime, @mapping, &BlogPost.to_datetime/1}
     )
 
@@ -45,7 +47,10 @@ defmodule DataSchemaTest do
 
       {:ok, blog} = DataSchema.to_struct(input, BlogPost)
 
+      assert BlogPost.__data_accessor() == DataSchema.MapAccessor
+
       assert blog == %DataSchemaTest.BlogPost{
+               list_of: ["This is a comment", "This is another comment"],
                comments: [
                  %DataSchemaTest.Comment{text: "This is a comment"},
                  %DataSchemaTest.Comment{text: "This is another comment"}
@@ -65,6 +70,7 @@ defmodule DataSchemaTest do
                field: {:content, "content", &DataSchemaTest.to_stringg/1},
                has_many: {:comments, "comments", DataSchemaTest.Comment},
                has_one: {:draft, "draft", DataSchemaTest.DraftPost},
+               list_of: {:list_of, "comments", &DataSchemaTest.comments/1},
                aggregate:
                  {:post_datetime,
                   [
@@ -72,6 +78,152 @@ defmodule DataSchemaTest do
                     field: {:time, "time", &Time.from_iso8601/1}
                   ], &DataSchemaTest.BlogPost.to_datetime/1}
              ]
+    end
+
+    test "we validate that the struct key must be an atom" do
+      message = """
+      The provided struct keys must be atoms. See docs for more information:
+
+          data_schema([
+            field: {:foo, "foo", &{:ok, &1}}
+          #          ^^^
+          #   must be an atom!
+          ])
+      """
+
+      assert_raise(DataSchema.InvalidSchemaError, message, fn ->
+        defmodule FieldTest do
+          import DataSchema, only: [data_schema: 1]
+          data_schema(field: {"foo", "foo", &{:ok, to_string(&1)}})
+        end
+      end)
+
+      assert_raise(DataSchema.InvalidSchemaError, message, fn ->
+        defmodule FieldTest do
+          import DataSchema, only: [data_schema: 1]
+          data_schema(field: {"foo", "foo", &{:ok, to_string(&1)}, optional?: true})
+        end
+      end)
+    end
+
+    test "we validate the field type" do
+      message = """
+      Field :not_a_field is not a valid field type.
+      Check the docs in DataSchema for more information on how fields should be written.
+      The available types are: [:field, :has_one, :has_many, :aggregate, :list_of]
+      """
+
+      assert_raise(DataSchema.InvalidSchemaError, message, fn ->
+        defmodule FieldTest do
+          import DataSchema, only: [data_schema: 1]
+          data_schema(not_a_field: {:foo, "foo", &{:ok, to_string(&1)}})
+        end
+      end)
+
+      assert_raise(DataSchema.InvalidSchemaError, message, fn ->
+        defmodule FieldTest do
+          import DataSchema, only: [data_schema: 1]
+          data_schema(not_a_field: {:foo, "foo", &{:ok, to_string(&1)}, optional?: true})
+        end
+      end)
+    end
+
+    test "we validate aggregate fields if they pass a map" do
+      message = """
+      An :aggregate field should provide a nested schema to describe the data to be extracted.
+      This can be a module of another DataSchema or a list of schema fields:
+
+          defmodule Thing do
+            import DataSchema, only: [data_schema: 1]
+
+            @fields [
+              field: {:date, "date", &Date.from_iso8601/1},
+              field: {:time, "time", &Time.from_iso8601/1}
+            ]
+
+            data_schema([
+              aggregate: {:datetime, @fields, NaiveDateTime.new(&1.date, &1.time)}
+            ])
+          end
+
+      Or:
+
+          defmodule Thing do
+            import DataSchema, only: [data_schema: 1]
+
+            defmodule DateTime do
+              import DataSchema, only: [data_schema: 1]
+
+              data_schema([
+                field: {:date, "date", &Date.from_iso8601/1},
+                field: {:time, "time", &Time.from_iso8601/1}
+              ])
+            end
+
+            data_schema([
+              aggregate: {:datetime, DateTime, &NaiveDateTime.new(&1.date, &1.time)}
+            ])
+          end
+
+      Provided schema: %{not_valid: "as_a_thing"}
+      """
+
+      assert_raise(DataSchema.InvalidSchemaError, message, fn ->
+        defmodule AggTest do
+          import DataSchema, only: [data_schema: 1]
+          @mapping %{not_valid: "as_a_thing"}
+          data_schema(aggregate: {:foo, @mapping, &{:ok, &1}, optional?: true})
+        end
+      end)
+
+      assert_raise(DataSchema.InvalidSchemaError, message, fn ->
+        defmodule AggTest do
+          import DataSchema, only: [data_schema: 1]
+          @mapping %{not_valid: "as_a_thing"}
+          data_schema(aggregate: {:foo, @mapping, &{:ok, &1}})
+        end
+      end)
+    end
+
+    test "we validate has_one provides a schema (and not a fn for example" do
+      message = """
+      has_one fields require a DataSchema module as their casting function:
+
+          data_schema([
+            has_one: {:foo, "path", Foo}
+            #                        ^^
+            # Should be a DataSchema module
+          ])
+
+      Or an inline list of fields like so:
+
+          @foo_fields [
+            field: {:bar, "bar", &{:ok, to_string(&1)}}
+          ]
+
+          data_schema([
+            has_one: {:foo, "path", @foo_fields}
+            #                          ^^
+            # Or a list of fields inline.
+          ])
+
+      You provided the following as a schema: \"ahhh\".
+      Ensure you haven't used the wrong field type.
+      """
+
+      assert_raise(DataSchema.InvalidSchemaError, message, fn ->
+        defmodule AggTest do
+          import DataSchema, only: [data_schema: 1]
+          data_schema(has_one: {:foo, "foo", "ahhh", optional?: true})
+        end
+      end)
+
+      assert_raise(DataSchema.InvalidSchemaError, message, fn ->
+        defmodule AggTest do
+          import DataSchema, only: [data_schema: 1]
+          data_schema(has_one: {:foo, "foo", "ahhh"})
+        end
+      end)
     end
   end
 
