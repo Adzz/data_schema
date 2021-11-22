@@ -32,32 +32,3 @@ defmodule DataSchema.AggregateTest do
     end
   end
 end
-
-# e = %DataSchema.Errors{
-#   errors: [
-#     top: "ERROR",
-#     agg: %DataSchema.Errors{
-#       errors: [
-#         second: "ERROR",
-#         three: "ss",
-#         foo: %DataSchema.Errors{
-#           errors: [
-#             bar: "WuAT",
-#             brah: "kkkkkkkk",
-#             baz: "sss"
-#           ]
-#         }
-#       ]
-#     },
-#     okay: "then"
-#   ]
-# }
-# recompile()
-# DataSchema.Errors.flatten_error_messages(e)
-
-# e = %DataSchema.Errors{
-#   errors: [
-#     top: "ERROR"
-#   ]
-# }
-

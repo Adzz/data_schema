@@ -4,5 +4,4 @@ When we create a struct from a schema `DataSchema.to_struct/2` a casting functio
 
 Each has its place and both are possible in DataSchema. Contrast the following approaches:
 
-
-TODO: finish this up.
+TODO: finish this up. Also have to actually implement the collect errors functionality first which is a climb.
