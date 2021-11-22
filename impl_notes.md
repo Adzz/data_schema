@@ -1,8 +1,6 @@
 # Todo List
 
 - add mad tests... For optional?, not. Aggregate fields inline and not inline. For when accessor returns nil for each field and for when the cast fn returns nil for all fields and cases.
-- update docs
-- Remove data_schema/2 and supply the accessor as a module attribute instead
 - Fix the doc below to make sense.
 - make an DataSchema.Error struct or similar.
 - collect_errors version of to_struct using the above error struct.
