@@ -119,6 +119,15 @@ DataSchema.to_struct(source_data, BlogPost)
 }
 ```
 
+So imagine the input data came from an API response:
+
+```elixir
+with {:ok, %{status: 200, response_body: body}} <- Http.get("https://www.my_thing.example.com"),
+     {:ok, decoded} <- Jason.decode(body) do
+  DataSchema.to_struct(source_data, BlogPost)
+end
+```
+
 ## Different Source Data Types
 
 As we mentioned before we want to be able to handle multiple different kinds of source data in our schemas. For each type of source data we want to be able to specify how you access the data for each field type. We do that by providing a "data accessor" (a module that implements the `DataSchema.DataAccessBehaviour`) when we create the schema. We do this by providing a `@data_accessor` on the schema. By default if you do not provide this module attribute we use `DataSchema.MapAccessor`. That means the above example is equivalent to doing the following:
@@ -144,20 +153,18 @@ end
 
 defmodule BlogPost do
   import DataSchema, only: [data_schema: 1]
-
   @data_accessor DataSchema.MapAccessor
+
+  @date_time_fields [
+    field: {:date, "date", &Date.from_iso8601/1},
+    field: {:time, "time", &Time.from_iso8601/1}
+  ]
   data_schema([
     field: {:content, "content", &{:ok, to_string(&1)}},
     has_many: {:comments, "comments", Comment},
     has_one: {:draft, "draft", DraftPost},
-    aggregate: {:post_datetime, %{date: "date", time: "time"}, &BlogPost.to_datetime/1},
+    aggregate: {:post_datetime, @date_time_fields, &NaiveDateTime.new(&1.date, &1.time)},
   ])
-
-  def to_datetime(%{date: date, time: time}) do
-    date = Date.from_iso8601!(date)
-    time = Time.from_iso8601!(time)
-    NaiveDateTime.new(date, time)
-  end
 end
 ```
 When creating the struct DataSchema will call the relevant function for the field we are creating, passing it the source data and the path to the value(s) in the source. Our `DataSchema.MapAccessor` looks like this:
