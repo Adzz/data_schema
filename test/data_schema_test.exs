@@ -65,6 +65,19 @@ defmodule DataSchemaTest do
       assert BlogPost.__data_accessor() == DataSchema.MapAccessor
     end
 
+    test "if you add a custom data_accessor it is used" do
+      defmodule ThingAccessor do
+      end
+
+      defmodule Foo do
+        import DataSchema, only: [data_schema: 1]
+        @data_accessor ThingAccessor
+        data_schema(field: {:foo, "foo", &DataSchemaTest.to_stringg/1})
+      end
+
+      assert Foo.__data_accessor() == DataSchemaTest.ThingAccessor
+    end
+
     test "fields are added as a secret fn" do
       assert BlogPost.__data_schema_fields() == [
                field: {:content, "content", &DataSchemaTest.to_stringg/1},
