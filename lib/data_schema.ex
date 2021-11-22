@@ -445,8 +445,11 @@ defmodule DataSchema do
   end
 
   defp do_to_struct(fields, accessor, struct, data, opts) do
-    # basically two different fns if we do collect errors. So we will come back to this
-    # get fail fast working first.
+    # Right now we fail as soon as we get an error. If this error is nested deep then we
+    # generate a recursive error that points to the value that caused it. We can imagine
+    # instead "collecting" errors - meaning continuing with struct creation to gather up
+    # all possible errors that will happen on struct creation. How to do this boggles the
+    # mind a bit. But we'd need an option I do know that....
     # collect_errors? = Keyword.get(opts, :collect_errors, false)
 
     Enum.reduce_while(fields, struct, fn
@@ -634,9 +637,6 @@ defmodule DataSchema do
             {:cont, Map.put(parent, field, value)}
 
           {:error, error} ->
-            # This is when the cast fn returns null or some kind of error message. would
-            # it ever be a DataSchema.Errors returned from cast? probs not and in fact
-            # currently the behaviour says this can be anything..... hmmmmmmm.
             {:halt, {:error, %DataSchema.Errors{errors: [{field, error}]}}}
 
           :error ->
