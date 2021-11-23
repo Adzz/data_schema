@@ -1,5 +1,6 @@
 # Todo List
 
+- schemaless to_struct - this might be as simple as exposing the do_to_struct fn and changing the name, need to look. But would be cool to be able to have schemas be runtime data. We sort of have that from aggregate fields so feels like it wont be a massive jump. Questions are - do we still need a struct passed in or does it just create a map? If it requires a struct name then what is the name of it? and like why not just create a schema at that point? Either the struct has to exist already OR we create a map. Creating a map is not a bad idea I think.... using an existing struct could be good if you wanted to define one struct for many different input data types.... Though be good to have docs on why having different schemas with the same thing keys could be good. If we do the passed in struct would it be an update/override situation or just all keys? there would be no validation that the struct we were being passed has the keys that the schema defines so we'd have to handle that in some way - probably just raise but seems like it adds overhead.
 - add mad tests... For optional?, not. Aggregate fields inline and not inline. For when accessor returns nil for each field and for when the cast fn returns nil for all fields and cases.
 - Fix the doc below to make sense.
 - implement traverse errors if we keep the recursive error thing.

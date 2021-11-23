@@ -441,10 +441,29 @@ defmodule DataSchema do
     fields = schema.__data_schema_fields()
     accessor = schema.__data_accessor()
     struct = struct(schema, %{})
-    do_to_struct(fields, accessor, struct, data, opts)
+    to_struct(data, struct, fields, accessor, opts)
   end
 
-  defp do_to_struct(fields, accessor, struct, data, opts) do
+# defmodule DateAndTime do
+#   defstruct [:date, :time]
+# end
+
+# data = %{"date" => "1", "time" => "2"}
+# fields = [
+#   field: {:date, "date", &Date.from_iso8601/1},
+#   field: {:time, "time", &Time.from_iso8601/1}
+# ]
+# accessor = MapAccessor
+# struct_or_schema = DateAndTime
+
+# Now there is the Q of should we default the accessor and opts... We'd need a map input
+# to not clash arity though. or a new name for this like
+# "schemaless_to_struct" or "to_existing_struct"
+  def to_struct(data, struct, fields, accessor) do
+    to_struct(data, struct, fields, accessor, [])
+  end
+
+  def to_struct(data, struct, fields, accessor, opts) do
     # Right now we fail as soon as we get an error. If this error is nested deep then we
     # generate a recursive error that points to the value that caused it. We can imagine
     # instead "collecting" errors - meaning continuing with struct creation to gather up
@@ -617,7 +636,7 @@ defmodule DataSchema do
   end
 
   defp aggregate(fields, accessor, data, opts, field, cast_fn, aggregate, parent, nullable?) do
-    case do_to_struct(fields, accessor, aggregate, data, opts) do
+    case to_struct(data, aggregate, fields, accessor, opts) do
       :error ->
         {:halt, :error}
 
