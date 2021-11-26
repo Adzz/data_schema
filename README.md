@@ -373,6 +373,18 @@ See the [docs](https://hexdocs.pm/data_schema/DataSchema.html) or the [guides in
 
 There are livebooks available under the `livebooks` folder in this repo. Find out more about livebook [here](https://github.com/livebook-dev/livebook).
 
+For quick instruction at the root of the repo you can:
+
+```sh
+mix escript.install hex livebook
+
+# Start the Livebook server
+livebook server
+```
+
+If using asdf you should also `asdf reshim elixir`.
+
+The above will start the livebook where you can navigate to the livebooks repo and load any of the interactive docs from there.
 
 
 ### Contributing
