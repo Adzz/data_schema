@@ -1,10 +1,10 @@
-# What Are Data Schemas?
+# Basic Concepts
+
+## What Is A Data Schema?
 
 Data schemas are declarative descriptions of how to create a struct from some input data. You can set up different schemas to handle different kinds of input data. By default we assume the incoming data is a map, but you can configure schemas to work with any arbitrary data input including XML and json.
 
 Data Schemas really shine when working with API responses - converting the response into trusted internal data easily and efficiently.
-
-## Creating A Simple Schema
 
 Let's think of creating a struct as taking some source data and turning it into the desired struct. To do this we need to know at least three things:
 
@@ -13,6 +13,8 @@ Let's think of creating a struct as taking some source data and turning it into 
 3. Where / how to get the data for each value from the source data.
 
 Turning the source data into the correct type defined by the schema will often require casting, so to cater for that the type definitions are casting functions. Let's look at a simple field example
+
+<!-- livebook:{"force_markdown":true} -->
 
 ```elixir
 field {:content, "text", &cast_string/1}
@@ -30,19 +32,31 @@ There are 5 kinds of struct fields we could want:
 2. `list_of`   - The value will be a list of casted values created from the source data.
 3. `has_one`   - The value will be created from a nested data schema (so will be a struct)
 4. `has_many`  - The value will be created by casting a list of values into a data schema.
-(You end up with a list of structs defined by the provided schema). Similar to has_many in ecto
+   (You end up with a list of structs defined by the provided schema). Similar to has_many in ecto
 5. `aggregate` - The value will a casted value formed from multiple bits of data in the source.
 
-To see this better let's look at a very simple example. Assume our input data looks like this:
+To see this better let's look at a very simple example.
+
+## Install DataSchema
+
+```elixir
+Mix.install([:data_schema])
+```
+
+<!-- livebook:{"branch_parent_index":1} -->
+
+## Creating A Simple Schema
+
+Assume our input data looks like this:
 
 ```elixir
 source_data = %{
   "content" => "This is a blog post",
-  "comments" => [%{"text" => "This is a comment"},%{"text" => "This is another comment"}],
+  "comments" => [%{"text" => "This is a comment"}, %{"text" => "This is another comment"}],
   "draft" => %{"content" => "This is a draft blog post"},
   "date" => "2021-11-11",
   "time" => "14:00:00",
-  "metadata" => %{ "rating" => 0}
+  "metadata" => %{"rating" => 0}
 }
 ```
 
@@ -63,17 +77,13 @@ We can describe the following schemas to enable this:
 defmodule DraftPost do
   import DataSchema, only: [data_schema: 1]
 
-  data_schema([
-    field: {:content, "content", &{:ok, to_string(&1)}}
-  ])
+  data_schema(field: {:content, "content", &{:ok, to_string(&1)}})
 end
 
 defmodule Comment do
   import DataSchema, only: [data_schema: 1]
 
-  data_schema([
-    field: {:text, "text", &{:ok, to_string(&1)}}
-  ])
+  data_schema(field: {:text, "text", &{:ok, to_string(&1)}})
 end
 
 defmodule BlogPost do
@@ -83,12 +93,12 @@ defmodule BlogPost do
     field: {:date, "date", &Date.from_iso8601/1},
     field: {:time, "time", &Time.from_iso8601/1}
   ]
-  data_schema([
+  data_schema(
     field: {:content, "content", &{:ok, to_string(&1)}},
     has_many: {:comments, "comments", Comment},
     has_one: {:draft, "draft", DraftPost},
-    aggregate: {:post_datetime, @date_time_fields, &NaiveDateTime.new(&1.date, &1.time)},
-  ])
+    aggregate: {:post_datetime, @date_time_fields, &NaiveDateTime.new(&1.date, &1.time)}
+  )
 end
 ```
 
@@ -97,23 +107,17 @@ Then to transform some input data into the desired struct we can call `DataSchem
 ```elixir
 source_data = %{
   "content" => "This is a blog post",
-  "comments" => [%{"text" => "This is a comment"},%{"text" => "This is another comment"}],
+  "comments" => [%{"text" => "This is a comment"}, %{"text" => "This is another comment"}],
   "draft" => %{"content" => "This is a draft blog post"},
   "date" => "2021-11-11",
   "time" => "14:00:00",
-  "metadata" => %{ "rating" => 0}
+  "metadata" => %{"rating" => 0}
 }
 
 DataSchema.to_struct(source_data, BlogPost)
-# This will output the following:
-
-{:ok, %BlogPost{
-  content: "This is a blog post",
-  comments: [%Comment{text: "This is a comment"}, %Comment{text: "This is another comment"}]
-  draft: %DraftPost{content: "This is a draft blog post"}}
-  post_datetime: ~N[2020-11-11 14:00:00]
-}}
 ```
+
+<!-- livebook:{"branch_parent_index":1} -->
 
 ## Different Source Data Types
 
@@ -124,18 +128,14 @@ defmodule DraftPost do
   import DataSchema, only: [data_schema: 1]
 
   @data_accessor DataSchema.MapAccessor
-  data_schema([
-    field: {:content, "content", &{:ok, to_string(&1)}}
-  ])
+  data_schema(field: {:content, "content", &{:ok, to_string(&1)}})
 end
 
 defmodule Comment do
   import DataSchema, only: [data_schema: 1]
 
   @data_accessor DataSchema.MapAccessor
-  data_schema([
-    field: {:text, "text", &{:ok, to_string(&1)}}
-  ])
+  data_schema(field: {:text, "text", &{:ok, to_string(&1)}})
 end
 
 defmodule BlogPost do
@@ -146,14 +146,15 @@ defmodule BlogPost do
     field: {:date, "date", &Date.from_iso8601/1},
     field: {:time, "time", &Time.from_iso8601/1}
   ]
-  data_schema([
+  data_schema(
     field: {:content, "content", &{:ok, to_string(&1)}},
     has_many: {:comments, "comments", Comment},
     has_one: {:draft, "draft", DraftPost},
-    aggregate: {:post_datetime, @date_time_fields, &NaiveDateTime.new(&1.date, &1.time)},
-  ])
+    aggregate: {:post_datetime, @date_time_fields, &NaiveDateTime.new(&1.date, &1.time)}
+  )
 end
 ```
+
 When creating the struct DataSchema will call the relevant function for the field we are creating, passing it the source data and the path to the value(s) in the source. Our `DataSchema.MapAccessor` looks like this:
 
 ```elixir
@@ -193,16 +194,11 @@ defmodule MapSchema do
     end
   end
 end
-```
-Then use it like so:
 
-```elixir
 defmodule DraftPost do
   use MapSchema
 
-  data_schema([
-    field: {:content, "content", &{:ok, to_string(&1)}}
-  ])
+  data_schema(field: {:content, "content", &{:ok, to_string(&1)}})
 end
 ```
 

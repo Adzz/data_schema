@@ -369,6 +369,12 @@ This is left as an exercise for the reader but hopefully you can see how you cou
 
 See the [docs](https://hexdocs.pm/data_schema/DataSchema.html) or the [guides in this repo](https://github.com/Adzz/data_schema/tree/main/guides) for more details.
 
+### Livebook
+
+There are livebooks available under the `livebooks` folder in this repo. Find out more about livebook [here](https://github.com/livebook-dev/livebook).
+
+
+
 ### Contributing
 
 **NB** Set the `MIX_ENV` to `:docs` when publishing the package. This will ensure that modules inside `test/support` wont get their documentation published with the library (as they are included in the :dev env).
