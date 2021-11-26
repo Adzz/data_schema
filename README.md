@@ -6,6 +6,8 @@ Data schemas are declarative descriptions of how to create a struct from some in
 
 Data Schemas really shine when working with API responses - converting the response into trusted internal data easily and efficiently.
 
+This library has no dependencies.
+
 ## Creating A Simple Schema
 
 Let's think of creating a struct as taking some source data and turning it into the desired struct. To do this we need to know at least three things:
