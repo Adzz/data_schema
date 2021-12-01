@@ -1,8 +1,3 @@
-<!-- By default GitHub renders the `.livemd` notebooks as regular text files. Depending
-on your use case and the target audience, you may find it useful to render notebooks
-content as Markdown files instead. There is an option to override how a particular
-file gets rendered on GitHub, so all you need to do is add a magic comment in every
-such notebook: -->
 <!-- vim: syntax=markdown -->
 # XML Schemas
 
