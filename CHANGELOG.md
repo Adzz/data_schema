@@ -1,5 +1,11 @@
 # Changelog for version 0.2.x
 
+## 0.2.1
+
+### Bug fix
+
+Previously we could not use a `:list_of` field on an inline `:aggregate` field. This fixes that.
+
 ## 0.2.0
 
 This represents a major change with lots of functionality re-thought an simplified. I would be highly surprised if anyone is even using this library at this point but it is good practice to mention it is a breaking change.
