@@ -9,6 +9,162 @@
 - BENCHAMRK against Ecto embedded schemas? Against a simpler version of the to_struct fn?
 - generally improve perf... Probably if we include collect errors that means making that a separate fn.
 
+- is there a place for `aggregate_many` ? This would aid the use case where we wish to get a field from somewhere else and provide it to each of a list"
+
+FOR EXAMPLE:
+
+
+# It's tricky to know for sure without getting my head round your use case more but it feels like you can get a fair bit of what you want. I'd recommend having a play!
+
+# I would say that when validations come from a combination of fields, you can still wrap this up into a casting function. Let's take a tricky example:
+
+# ```elixir
+# %{
+#   "port" => "8080",
+#   "firewall" => %{
+#     "dnat" => %{
+#       "nat-in" => [
+#         %{
+#           "dport" => "1",
+#           "proto" => "tcp"
+#         },
+#         %{
+#           "dport" => "8080",
+#           "proto" => "tcp"
+#         }
+#       ]
+#     }
+#   }
+# }
+# ```
+
+# Imagine that for the sake of example `port` and `dport` need to be equal. In our example that would make the first `nat-in` invalid, but the second on would be fine.
+
+# Using DataSchema I would use an `:aggregate` field to group together all of the bits of data needed to determine whether a field can be considered valid. To help support this I would first use an `Access` data accessor. This allows me to use access paths to query for data in the input:
+
+# ```elixir
+defmodule AccessDataAccessor do
+  @behaviour DataSchema.DataAccessBehaviour
+
+  @impl true
+  def field(data, "./"), do: data
+  def field(data, path), do: get_in(data, path)
+
+  @impl true
+  def list_of(data, "./"), do: data
+  def list_of(data, path), do: get_in(data, path)
+
+  @impl true
+  def has_one(data, "./"), do: data
+  def has_one(data, path), do: get_in(data, path)
+
+  @impl true
+  def has_many(data, "./"), do: data
+  def has_many(data, path), do: get_in(data, path)
+end
+
+# ```
+# Now the schemas:
+
+# ```elixir
+defmodule SchemaString do
+  def cast(v), do: {:ok, to_string(v)}
+end
+
+defmodule NatIn do
+  import DataSchema
+
+  data_schema(
+    field: {:dport, "dport", SchemaString},
+    field: {:proto, "proto", SchemaString}
+  )
+end
+
+defmodule Nat do
+  import DataSchema
+
+  @data_accessor AccessDataAccessor
+  @dport_fields [
+    field: {:port, ["port"], SchemaString},
+    field: {:dport, ["dport"], SchemaString}
+  ]
+  data_schema(
+    aggregate: {:dport, @dport_fields, &Nat.valid_dport/1},
+    field: {:proto, ["proto"], SchemaString}
+  )
+
+  def cast(value), do: DataSchema.to_struct(value)
+  def valid_dport(%{port: port, dport: port}), do: {:ok, port}
+  def valid_dport(_), do: {:error, "NOPE!"}
+end
+
+defmodule Thing do
+  import DataSchema
+
+  @fields [
+    field: {:port, ["port"], SchemaString},
+    has_many: {:nats, ["firewall", "dnat", "nat-in"], NatIn}
+  ]
+  @data_accessor AccessDataAccessor
+  data_schema(aggregate: {:nat_in, @fields, &Thing.to_nats/1})
+
+  def to_nats(%{port: port, nats: nats}) do
+    Enum.reduce_while(nats, {:ok, []}, fn nat, {:ok, acc} ->
+      case DataSchema.to_struct(nat, Nat) do
+        {:ok, nat} -> {:cont, {:ok, [nat | acc]}}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+  end
+end
+
+# ```
+# Now we can try with different data:
+
+# ```elixir
+input = %{
+  "port" => "8080",
+  "firewall" => %{
+    "dnat" => %{
+      "nat-in" => [
+        %{
+          "dport" => "1",
+          "proto" => "tcp"
+        },
+        %{
+          "dport" => "8080",
+          "proto" => "tcp"
+        }
+      ]
+    }
+  }
+}
+
+DataSchema.to_struct(input, Thing)
+# => {:error, %DataSchema.Errors{errors: [nat_in: "port did not == dport, dport was: 1"]}}
+
+input = %{
+  "port" => "8080",
+  "firewall" => %{
+    "dnat" => %{
+      "nat-in" => [
+        %{
+          "dport" => "8080",
+          "proto" => "tcp"
+        },
+        %{
+          "dport" => "8080",
+          "proto" => "tcp"
+        }
+      ]
+    }
+  }
+}
+
+DataSchema.to_struct(input, Thing)
+
+
+
 - inline schema fields for has_one / has_many - Probably not doing as need a nice way to add the name of the struct when it is inline... I don't think there is one particularly. The other option is to just make a map for inline schemas but seems worse for some reason. Think it's better than supplying a struct name though.
 
 
@@ -56,3 +212,14 @@ You might think they could be encompassed by field and list_of but there are sub
  a problem/ there is probably a reason we switched to list_of???
  I guess you can always switch to list_of / field if you want more fine grained
  control.
+
+
+
+
+
+
+Aside. Data schemas are a good example of integration tests being valuable. You could take the stance that to_struct is unit tested here so you don't test it in your app. Doing that means  though that you don't have a great way to test that your schema is defined. Except testing that the __data_schema_fields looks right (which is good to do!). Problem is that you don't know if you wrote the schema wrong until you do to_struct.
+
+So even though it's repeating tests, the best way to test the schema is to just actually use it with to_struct. So repeated testing is fine, actually.
+
+If the call stack is deep there is a case for mocking some functions in it, but it matters less when data is immutable. so it's how we define a "unit".
