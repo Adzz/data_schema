@@ -30,5 +30,23 @@ defmodule DataSchema.AggregateTest do
                   ]
                 }}
     end
+
+    defmodule AggListOf do
+      import DataSchema, only: [data_schema: 1]
+
+      @fields [
+        list_of: {:values, "foo", &__MODULE__.to_int/1}
+      ]
+      data_schema(aggregate: {:agg, @fields, fn %{values: values} -> {:ok, Enum.sum(values)} end})
+
+      def to_int(x), do: {:ok, String.to_integer(x)}
+    end
+
+    test "when aggregate is an inline list_of" do
+      input = %{"foo" => ["1", "2", "3"]}
+
+      assert DataSchema.to_struct(input, AggListOf) ==
+               {:ok, %DataSchema.AggregateTest.AggListOf{agg: 6}}
+    end
   end
 end

@@ -22,7 +22,6 @@ end
 # it where the nested error is... but flattening that error gets tricky. IT depends what the
 # user wants to do with it.
 
-
 #   # Is this a good idea? Even needed? Shall we just not do recursive errors?
 #   def flatten_error_messages(%__MODULE__{errors: []}), do: "No Errors!"
 

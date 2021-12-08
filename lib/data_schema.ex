@@ -444,21 +444,21 @@ defmodule DataSchema do
     to_struct(data, struct, fields, accessor, opts)
   end
 
-# defmodule DateAndTime do
-#   defstruct [:date, :time]
-# end
+  # defmodule DateAndTime do
+  #   defstruct [:date, :time]
+  # end
 
-# data = %{"date" => "1", "time" => "2"}
-# fields = [
-#   field: {:date, "date", &Date.from_iso8601/1},
-#   field: {:time, "time", &Time.from_iso8601/1}
-# ]
-# accessor = MapAccessor
-# struct_or_schema = DateAndTime
+  # data = %{"date" => "1", "time" => "2"}
+  # fields = [
+  #   field: {:date, "date", &Date.from_iso8601/1},
+  #   field: {:time, "time", &Time.from_iso8601/1}
+  # ]
+  # accessor = MapAccessor
+  # struct_or_schema = DateAndTime
 
-# Now there is the Q of should we default the accessor and opts... We'd need a map input
-# to not clash arity though. or a new name for this like
-# "schemaless_to_struct" or "to_existing_struct"
+  # Now there is the Q of should we default the accessor and opts... We'd need a map input
+  # to not clash arity though. or a new name for this like
+  # "schemaless_to_struct" or "to_existing_struct"
   def to_struct(data, struct, fields, accessor) do
     to_struct(data, struct, fields, accessor, [])
   end
@@ -469,6 +469,8 @@ defmodule DataSchema do
     # instead "collecting" errors - meaning continuing with struct creation to gather up
     # all possible errors that will happen on struct creation. How to do this boggles the
     # mind a bit. But we'd need an option I do know that....
+    # if we collect errors we'd need to define a traverse_errors fn that could collect all
+    # the errors.
     # collect_errors? = Keyword.get(opts, :collect_errors, false)
 
     Enum.reduce_while(fields, struct, fn
@@ -583,7 +585,7 @@ defmodule DataSchema do
             {:halt, :error}
 
           relations when is_list(relations) ->
-            {:cont, %{struct | field => :lists.reverse(relations)}}
+            {:cont, Map.put(struct, field, :lists.reverse(relations))}
         end
     end
   end
@@ -630,7 +632,7 @@ defmodule DataSchema do
             {:halt, :error}
 
           relations when is_list(relations) ->
-            {:cont, %{struct | field => :lists.reverse(relations)}}
+            {:cont, Map.put(struct, field, :lists.reverse(relations))}
         end
     end
   end
