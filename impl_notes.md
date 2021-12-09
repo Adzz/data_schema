@@ -175,7 +175,7 @@ You might think they could be encompassed by field and list_of but there are sub
  if we recur that means list has to be a nested schema
  if we dont then there is the confusion with nested schemas implementing
  to_struct with different options from the usual.
- basically the options for to_struct stop becoming runtime "whn you call then fn"
+ basically the options for to_struct stop becoming runtime "when you call then fn"
  options and become schema compile time options... unless you pass the options to
  all the cast fns which like... meh. Maybe.
 
@@ -188,7 +188,7 @@ You might think they could be encompassed by field and list_of but there are sub
 
 
  What we are learning is we want this function to be able to control the looping
- and the error behaviour. We don't want tit to be possible to accidentally mix and
+ and the error behaviour. We don't want it to be possible to accidentally mix and
  match. And we want as a simple an interface as possible.
 
  The other issue is we want to be able to have different access behaviour for
@@ -213,10 +213,12 @@ You might think they could be encompassed by field and list_of but there are sub
  I guess you can always switch to list_of / field if you want more fine grained
  control.
 
+ The question becomes "does non null" mean "non empty?".
 
 
 
 
+#### integration tests ramble.
 
 Aside. Data schemas are a good example of integration tests being valuable. You could take the stance that to_struct is unit tested here so you don't test it in your app. Doing that means  though that you don't have a great way to test that your schema is defined. Except testing that the __data_schema_fields looks right (which is good to do!). Problem is that you don't know if you wrote the schema wrong until you do to_struct.
 

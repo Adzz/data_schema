@@ -110,10 +110,20 @@ defmodule DataSchema do
 
   Available options are:
 
-    - `:optional?` - specifies whether or not the field in the struct should be included in
+    * `:optional?` - specifies whether or not the field in the struct should be included in
     the `@enforce_keys` for the struct. By default all fields are required but you can mark
     them as optional by setting this to `true`. This will also be checked when creating a
     struct with `DataSchema.to_struct/2` returning an error if the required field is null.
+
+    * `:required?` - Specifies whether or a has_many field is allowed to be `[]`. Defaults to
+    `true` but can be set to false to allow.
+
+What if instead we allowed for a casting fn for has_many which gets the struct.
+This would allow for any number of checks then, at the cost of worse ux...
+it would be like an after_cast options which feels dirty....
+
+
+
 
   For example:
       defmodule Sandwich do
@@ -481,6 +491,15 @@ defmodule DataSchema do
         aggregate = struct(schema_mod, %{})
         aggregate(fields, accessor, data, opts, field, cast_fn, aggregate, struct, nullable?)
 
+    # should aggregate allow for list of aggregates? aggregate_many?
+    # That would allow a list of aggregates to be passed to a casting fn. You
+    # can return whatever you want. Which means you could _just_ have aggregate and get
+    # the current behaviour by using identity - returning a list.
+
+    # Is aggregate_many just aggregate with a path to a list?
+    # meybe. It could _always_ be aggregate many just sometimes it's a list of one.
+    # But that might be nasty who knows
+
       {:aggregate, {field, schema_mod, cast_fn}}, struct when is_atom(schema_mod) ->
         fields = schema_mod.__data_schema_fields()
         accessor = schema_mod.__data_accessor()
@@ -493,6 +512,10 @@ defmodule DataSchema do
 
       {:aggregate, {field, fields, cast_fn}}, struct when is_list(fields) ->
         aggregate(fields, accessor, data, opts, field, cast_fn, %{}, struct, false)
+
+      {:aggregate_many, {field, fields, cast_fn}}, struct when is_list(fields) ->
+
+
 
       {field_type, {field, paths, cast_fn, field_opts}}, struct ->
         nullable? = Keyword.get(field_opts, :optional?, false)

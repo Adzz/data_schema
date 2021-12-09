@@ -152,7 +152,27 @@ defmodule BlogPost do
     has_many: {:comments, "comments", Comment},
     has_one: {:draft, "draft", DraftPost},
     aggregate: {:post_datetime, @date_time_fields, &NaiveDateTime.new(&1.date, &1.time)}
+    aggregate_many: {:datetimes, "./", @date_time_fields, &NaiveDateTime.new(&1.date, &1.time)}
+                                ^^^^
+                  It just needs a path and therefore needs to be in the behaviour.
+                  This starts us on a path though where the schemas look very different
+                  from their input, which may not be desireable...
   )
+
+  @doc ""
+  def latest([head | _] = date_times) do
+   first = NaiveDateTime.new(head.date, head.time)
+   latest = Enum.reduce(date_times, first, fn %{date: date, time: time}, acc ->
+      current = NaiveDateTime.new(date, time)
+      if NaiveDateTime.compare(acc, current) == :lt do
+        acc
+      else
+        current
+      end
+   end)
+
+   {:ok, latest}
+  end
 end
 ```
 
