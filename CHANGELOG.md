@@ -1,5 +1,12 @@
 # Changelog for version 0.2.x
 
+## 0.2.2
+
+### Bug fix
+
+We were not creating the nested errors correctly for has_many and has_one, now we do.
+We also were removing `nil`s when they were allowed for `:list_of`, we now don't.
+
 ## 0.2.1
 
 ### Bug fix
