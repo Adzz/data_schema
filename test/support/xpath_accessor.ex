@@ -7,7 +7,10 @@ defmodule XpathAccessor do
 
   @impl true
   def field(data, path) do
-    SweetXml.xpath(data, ~x"#{path}"s)
+    case SweetXml.xpath(data, ~x"#{path}"s) do
+      "" -> nil
+      value -> value
+    end
   end
 
   @impl true

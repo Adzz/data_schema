@@ -319,19 +319,27 @@ defmodule DataSchemaTest do
       blog = DataSchema.to_struct(input, HasOneError)
 
       assert blog ==
-               {:error,
-                %DataSchema.Errors{
-                  errors: [integer: "Field was marked as not null but was found to be null."]
-                }}
+               {
+                 :error,
+                 %DataSchema.Errors{
+                   errors: [
+                     thing: %DataSchema.Errors{
+                       errors: [integer: "Field was marked as not null but was found to be null."]
+                     }
+                   ]
+                 }
+               }
 
       input = %{"thing" => nil}
       blog = DataSchema.to_struct(input, HasOneError)
 
       assert blog ==
-               {:error,
-                %DataSchema.Errors{
-                  errors: [thing: "Field was marked as not null but was found to be null."]
-                }}
+               {
+                 :error,
+                 %DataSchema.Errors{
+                   errors: [thing: "Field was marked as not null but was found to be null."]
+                 }
+               }
     end
 
     defmodule ListOfError do
@@ -362,7 +370,11 @@ defmodule DataSchemaTest do
       assert blog ==
                {:error,
                 %DataSchema.Errors{
-                  errors: [thing: "Field was marked as not null but was found to be null."]
+                  errors: [
+                    things: %DataSchema.Errors{
+                      errors: [thing: "Field was marked as not null but was found to be null."]
+                    }
+                  ]
                 }}
     end
   end

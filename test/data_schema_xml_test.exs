@@ -128,6 +128,38 @@ defmodule DataSchemaXmlTest do
 
       assert burger.sauce == %DataSchemaXmlTest.Sauce{name: "burger sauce"}
     end
+
+    test "nested errors are nested" do
+      xml = """
+      <SteamedHam>
+        <ReadyDate>2021-09-11</ReadyDate>
+        <ReadyTime>15:50:07,123Z</ReadyTime>
+        <Sauce Name="burger sauce">spicy</Sauce>
+        <Type>Type This</Type>
+        <Salads>
+          <Salad Name="ceasar">
+            <Cheese />
+          </Salad>
+        </Salads>
+      </SteamedHam>
+      """
+
+      {:error, error} = DataSchema.to_struct(xml, SteamedHam)
+
+      expected = %DataSchema.Errors{
+        errors: [
+          salads: %DataSchema.Errors{
+            errors: [
+              cheese_slices: %DataSchema.Errors{
+                errors: [mouldy?: "Field was marked as not null but was found to be null."]
+              }
+            ]
+          }
+        ]
+      }
+
+      assert error == expected
+    end
   end
 
   defp xml do

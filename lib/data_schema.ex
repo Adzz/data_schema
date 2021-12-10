@@ -511,23 +511,29 @@ defmodule DataSchema do
   end
 
   defp process_field({:field, {field, path, cast_fn}}, struct, nullable?, accessor, data) do
-    case call_cast_fn(cast_fn, accessor.field(data, path)) do
-      {:ok, nil} ->
-        if nullable? do
-          {:cont, Map.put(struct, field, nil)}
-        else
-          # Instead of halt we would have to
-          {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
+    case {accessor.field(data, path), nullable?} do
+      {nil, false} ->
+        {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
+
+      {value, _} ->
+        case call_cast_fn(cast_fn, value) do
+          {:ok, nil} ->
+            if nullable? do
+              {:cont, Map.put(struct, field, nil)}
+            else
+              # Instead of halt we would have to
+              {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
+            end
+
+          {:ok, value} ->
+            {:cont, Map.put(struct, field, value)}
+
+          {:error, _} = error ->
+            {:halt, error}
+
+          :error ->
+            {:halt, :error}
         end
-
-      {:ok, value} ->
-        {:cont, Map.put(struct, field, value)}
-
-      {:error, _} = error ->
-        {:halt, error}
-
-      :error ->
-        {:halt, :error}
     end
   end
 
@@ -546,7 +552,7 @@ defmodule DataSchema do
         case to_struct(value, cast_module) do
           # It's not possible for to_struct to return nil so we don't handle that case here
           {:ok, value} -> {:cont, Map.put(struct, field, value)}
-          {:error, _} = error -> {:halt, error}
+          {:error, error} -> {:halt, {:error, %DataSchema.Errors{errors: [{field, error}]}}}
           :error -> {:halt, :error}
         end
     end
@@ -573,7 +579,7 @@ defmodule DataSchema do
           # It's not possible for to_struct to return nil so we don't worry about it here.
           case to_struct(datum, cast_module) do
             {:ok, struct} -> {:cont, [struct | acc]}
-            {:error, _} = error -> {:halt, error}
+            {:error, error} -> {:halt, {:error, %DataSchema.Errors{errors: [{field, error}]}}}
             :error -> {:halt, :error}
           end
         end)
@@ -607,9 +613,7 @@ defmodule DataSchema do
               if nullable? do
                 # Do we add nil or do we remove them? a list of nils seeeeems bad. But is it
                 # better to not remove information...?
-                # {:cont, [nil | acc]}
-
-                {:cont, acc}
+                {:cont, [nil | acc]}
               else
                 {:halt, {:error, "Got null for a field that can't be null."}}
               end
