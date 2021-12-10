@@ -1,5 +1,11 @@
 # Changelog for version 0.2.x
 
+## 0.2.3
+
+### Bug fix
+
+Ensures we call `Code.ensure_loaded?` before checking if function is exported. This was causing problems when running tests.
+
 ## 0.2.2
 
 ### Bug fix
