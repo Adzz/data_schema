@@ -35,7 +35,7 @@ There are 5 kinds of struct fields we could want:
 3. `has_one`   - The value will be created from a nested data schema (so will be a struct)
 4. `has_many`  - The value will be created by casting a list of values into a data schema.
 (You end up with a list of structs defined by the provided schema). Similar to has_many in ecto
-5. `aggregate` - The value will a casted value formed from multiple bits of data in the source.
+5. `aggregate` - The value will be a casted value formed from multiple bits of data in the source.
 
 To see this better let's look at a very simple example. Assume our input data looks like this:
 
