@@ -434,7 +434,7 @@ defmodule DataSchema do
   end
 
   def to_struct(data, schema, opts) when is_atom(schema) do
-    if !function_exported?(schema, :__data_schema_fields, 0) do
+    if Code.ensure_loaded?(schema) && !function_exported?(schema, :__data_schema_fields, 0) do
       raise "Provided schema is not a valid DataSchema: #{inspect(schema)}"
     end
 
