@@ -1,7 +1,5 @@
 # DataSchema
 
-<!-- We def want a livebook for this. So much easier to explain. -->
-
 Data schemas are declarative descriptions of how to create a struct from some input data. You can set up different schemas to handle different kinds of input data. By default we assume the incoming data is a map, but you can configure schemas to work with any arbitrary data input including XML and json.
 
 Data Schemas really shine when working with API responses - converting the response into trusted internal data easily and efficiently.
