@@ -1,5 +1,6 @@
 defmodule DataSchemaTest do
   use ExUnit.Case, async: true
+  doctest DataSchema
 
   def to_stringg(x), do: {:ok, to_string(x)}
   def comments(x), do: {:ok, x["text"]}
