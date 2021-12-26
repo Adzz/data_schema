@@ -425,12 +425,21 @@ defmodule DataSchema do
     to_struct(data, schema, [])
   end
 
+  def to_struct(data, {schema, inline_fields}) when is_atom(schema) do
+    to_struct(data, {schema, inline_fields}, [])
+  end
+
   def to_struct(data, schema) do
     to_struct(data, schema, [])
   end
 
   def to_struct(data, %schema{}, opts) do
     to_struct(data, schema, opts)
+  end
+
+  def to_struct(data, {schema, inline_fields}, opts) when is_atom(schema) do
+    accessor = schema.__data_accessor()
+    to_struct(data, struct(schema, %{}), inline_fields, accessor, opts)
   end
 
   def to_struct(data, schema, opts) when is_atom(schema) do
@@ -444,26 +453,45 @@ defmodule DataSchema do
     to_struct(data, struct, fields, accessor, opts)
   end
 
-  # defmodule DateAndTime do
-  #   defstruct [:date, :time]
-  # end
-
-  # data = %{"date" => "1", "time" => "2"}
-  # fields = [
-  #   field: {:date, "date", &Date.from_iso8601/1},
-  #   field: {:time, "time", &Time.from_iso8601/1}
-  # ]
-  # accessor = MapAccessor
-  # struct_or_schema = DateAndTime
-
-  # Now there is the Q of should we default the accessor and opts... We'd need a map input
-  # to not clash arity though. or a new name for this like
-  # "schemaless_to_struct" or "to_existing_struct"
   def to_struct(data, struct, fields, accessor) do
     to_struct(data, struct, fields, accessor, [])
   end
 
-  def to_struct(data, struct, fields, accessor, opts) do
+  @doc """
+  Creates a struct or map from the provided arguments. This function can be used to define
+  runtime schemas for the most dynamic of cases. This means you don't have to define a schema
+  at compile time using the `DataShema.data_schema/1` macro.
+
+  ### Examples
+
+  Creating a struct:
+
+      defmodule Run do
+        defstruct [:time]
+      end
+
+      input = %{"time" => "10:00"}
+      fields = [
+        field: {:time, "time", &{:ok, to_string(&1)}}
+      ]
+      DataSchema.to_struct(input, Run, fields, DataSchema.MapAccessor)
+      {:ok, %Run{time: "10:00"}}
+
+  Creating a map:
+
+      input = %{"time" => "10:00"}
+      fields = [
+        field: {:time, "time", &{:ok, to_string(&1)}}
+      ]
+      DataSchema.to_struct(input, %{}, fields, DataSchema.MapAccessor)
+      {:ok, %{time: "10:00"}}
+  """
+  # If we are passed a Module we assume it's a struct and create an empty one to reduce over.
+  def to_struct(data, struct, fields, accessor, opts) when is_atom(struct) do
+    to_struct(data, struct(struct, %{}), fields, accessor, opts)
+  end
+
+  def to_struct(data, %{} = struct, fields, accessor, opts) when is_list(fields) do
     # Right now we fail as soon as we get an error. If this error is nested deep then we
     # generate a recursive error that points to the value that caused it. We can imagine
     # instead "collecting" errors - meaning continuing with struct creation to gather up
@@ -519,14 +547,14 @@ defmodule DataSchema do
         case call_cast_fn(cast_fn, value) do
           {:ok, nil} ->
             if nullable? do
-              {:cont, Map.put(struct, field, nil)}
+              {:cont, update_struct(struct, field, nil)}
             else
               # Instead of halt we would have to
               {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
             end
 
           {:ok, value} ->
-            {:cont, Map.put(struct, field, value)}
+            {:cont, update_struct(struct, field, value)}
 
           {:error, _} = error ->
             {:halt, error}
@@ -537,13 +565,36 @@ defmodule DataSchema do
     end
   end
 
+  defp process_field(
+         {:has_one, {field, path, {cast_module, inline_fields}}},
+         struct,
+         nullable?,
+         accessor,
+         data
+       ) do
+    case accessor.has_one(data, path) do
+      nil ->
+        if nullable? do
+          {:cont, update_struct(struct, field, nil)}
+        else
+          {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
+        end
+
+      value ->
+        case to_struct(value, struct(cast_module, %{}), inline_fields, accessor, []) do
+          # It's not possible for to_struct to return nil so we don't handle that case here
+          {:ok, value} -> {:cont, update_struct(struct, field, value)}
+          {:error, error} -> {:halt, {:error, %DataSchema.Errors{errors: [{field, error}]}}}
+          :error -> {:halt, :error}
+        end
+    end
+  end
+
   defp process_field({:has_one, {field, path, cast_module}}, struct, nullable?, accessor, data) do
     case accessor.has_one(data, path) do
       nil ->
         if nullable? do
-          # Should we still call cast fn? There is no cast to happen here as cast is to_struct
-          # which happens automatically.
-          {:cont, Map.put(struct, field, nil)}
+          {:cont, update_struct(struct, field, nil)}
         else
           {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
         end
@@ -551,9 +602,51 @@ defmodule DataSchema do
       value ->
         case to_struct(value, cast_module) do
           # It's not possible for to_struct to return nil so we don't handle that case here
-          {:ok, value} -> {:cont, Map.put(struct, field, value)}
+          {:ok, value} -> {:cont, update_struct(struct, field, value)}
           {:error, error} -> {:halt, {:error, %DataSchema.Errors{errors: [{field, error}]}}}
           :error -> {:halt, :error}
+        end
+    end
+  end
+
+  defp process_field(
+         {:has_many, {field, path, {cast_module, inline_fields}}},
+         struct,
+         nullable?,
+         accessor,
+         data
+       ) do
+    case accessor.has_many(data, path) do
+      nil ->
+        if nullable? do
+          {:cont, update_struct(struct, field, nil)}
+        else
+          {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
+        end
+
+      data ->
+        data
+        |> Enum.reduce_while([], fn datum, acc ->
+          # It's not possible for to_struct to return nil so we don't worry about it here.
+          # Should we use the parent data accessor or should we require that the struct
+          # defines one?
+          # using the parent always doesn't work for compile time schemas. So that's hout
+          # now doing one thing for both is either confusing or complicated.
+          case to_struct(datum, struct(cast_module, %{}), inline_fields, accessor, []) do
+            {:ok, struct} -> {:cont, [struct | acc]}
+            {:error, error} -> {:halt, {:error, %DataSchema.Errors{errors: [{field, error}]}}}
+            :error -> {:halt, :error}
+          end
+        end)
+        |> case do
+          {:error, _} = error ->
+            {:halt, error}
+
+          :error ->
+            {:halt, :error}
+
+          relations when is_list(relations) ->
+            {:cont, update_struct(struct, field, :lists.reverse(relations))}
         end
     end
   end
@@ -568,7 +661,7 @@ defmodule DataSchema do
     case accessor.has_many(data, path) do
       nil ->
         if nullable? do
-          {:cont, Map.put(struct, field, nil)}
+          {:cont, update_struct(struct, field, nil)}
         else
           {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
         end
@@ -591,7 +684,7 @@ defmodule DataSchema do
             {:halt, :error}
 
           relations when is_list(relations) ->
-            {:cont, Map.put(struct, field, :lists.reverse(relations))}
+            {:cont, update_struct(struct, field, :lists.reverse(relations))}
         end
     end
   end
@@ -600,7 +693,7 @@ defmodule DataSchema do
     case accessor.list_of(data, path) do
       nil ->
         if nullable? do
-          {:cont, Map.put(struct, field, nil)}
+          {:cont, update_struct(struct, field, nil)}
         else
           {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
         end
@@ -636,7 +729,7 @@ defmodule DataSchema do
             {:halt, :error}
 
           relations when is_list(relations) ->
-            {:cont, Map.put(struct, field, :lists.reverse(relations))}
+            {:cont, update_struct(struct, field, :lists.reverse(relations))}
         end
     end
   end
@@ -653,13 +746,13 @@ defmodule DataSchema do
         case call_cast_fn(cast_fn, values_map) do
           {:ok, nil} ->
             if nullable? do
-              {:cont, Map.put(parent, field, nil)}
+              {:cont, update_struct(parent, field, nil)}
             else
               {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
             end
 
           {:ok, value} ->
-            {:cont, Map.put(parent, field, value)}
+            {:cont, update_struct(parent, field, value)}
 
           {:error, error} ->
             {:halt, {:error, %DataSchema.Errors{errors: [{field, error}]}}}
@@ -668,6 +761,16 @@ defmodule DataSchema do
             {:halt, :error}
         end
     end
+  end
+
+  # Sometimes the data we are creating is a map, sometimes a struct. When it is a struct
+  # we want to know the field exists before we add it.
+  defp update_struct(%_struct_name{} = struct, field, item) do
+    %{struct | field => item}
+  end
+
+  defp update_struct(%{} = map, field, item) do
+    Map.put(map, field, item)
   end
 
   defp null_error(error, field) do
