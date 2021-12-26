@@ -394,6 +394,79 @@ defmodule DataSchema do
   end
 
   @doc """
+  """
+  def schemas_from_open_api_json(json) do
+    json
+    |> Jason.decode!()
+    |> Enum.reduce(%{}, fn
+      {"paths", path_item_object}, acc ->
+        fields =
+          Enum.reduce(path_item_object, acc, fn
+            {_path, operation_object}, accum ->
+              Enum.reduce(operation_object, accum, fn operation_object, accumu ->
+                parse_operation_object(operation_object, accumu)
+              end)
+          end)
+
+      {key, value}, acc ->
+        acc
+    end)
+  end
+
+  def parse_operation_object({"get", data}, acc) do
+    module_name = Map.fetch!(data, "operationId") |> Macro.camelize() |> IO.inspect()
+
+    fields =
+      data
+      |> Map.fetch!("responses")
+      |> Map.fetch!("200")
+      |> Map.fetch!("content")
+      |> Map.fetch!("application/json")
+      |> Map.fetch!("schema")
+      |> parse_schema()
+
+    Map.put(acc, module_name, fields)
+  end
+
+  def parse_operation_object({new, _data}, _) do
+    raise "we got a live one: #{new}"
+  end
+
+  defp parse_schema(schema) do
+    case Map.get(schema, "type") do
+      "object" ->
+        data =
+          schema
+          |> Map.fetch!("properties")
+          |> Map.fetch!("data")
+
+        type =
+          data
+          |> Map.fetch!("type")
+
+        case type do
+          "array" ->
+            data
+            |> Map.fetch!("items")
+            |> Map.fetch!("properties")
+            |> Enum.map(fn {field, v} ->
+              {String.to_atom(field), field, v["type"]}
+            end)
+
+          "object" ->
+            data
+            |> Map.fetch!("properties")
+            |> Enum.map(fn {field, v} ->
+              {String.to_atom(field), field, v["type"]}
+            end)
+        end
+
+      "array" ->
+        raise "hell"
+    end
+  end
+
+  @doc """
   Accepts an data schema module and some source data and attempts to create the struct
   defined in the schema from the source data recursively.
 

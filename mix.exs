@@ -40,6 +40,7 @@ defmodule DataSchema.MixProject do
     [
       # This is added just so we can test the idea of an XML schema.
       {:sweet_xml, ">= 0.0.0", only: [:dev, :test]},
+      {:jason, ">= 0.0.0", only: [:dev, :test]},
       {:ex_doc, ">= 0.0.0", only: :docs, runtime: false}
     ]
   end
