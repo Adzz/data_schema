@@ -1,0 +1,330 @@
+# Generating Client Libraries
+
+## Section
+
+This is an experiment to see if we can generate data_schemas for Duffel
+
+Originally we considered introspecting serializers in the platform and using them to create 
+schemas but they don't have type info and I don't think they specify all of the fields in a 
+response.
+
+Instead we are exploring the idea of taking an Open API Schema and parsing it so we can
+turn it into a bunch of schemas. If wereally make this general it would be a very nice
+function to have in DataSchema, but it gets complex. I'm not sure if it's possible in
+the general case. We may be able to provide something close though for most people 80/20
+and all that.
+
+### Docs
+
+Check here for the reference
+
+https://spec.openapis.org/oas/v3.1.0#fixed-fields-11
+
+```elixir
+Mix.install([:jason])
+```
+
+## JSON Input
+
+```elixir
+example = ~S({
+  "openapi": "3.0.2",
+  "info": {},
+  "externalDocs": {},
+  "servers": [],
+  "tags": [],
+  "paths": {
+    "/air/aircraft/{id}": {
+      "get": {
+        "summary": "Get a single aircraft",
+        "description": "Retrieves an aircraft by its ID",
+        "operationId": "getAircraftById",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "tags": [
+          "Supporting Resources",
+          "Aircraft"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Duffel's unique identifier for the aircraft",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Duffel's unique identifier for the aircraft",
+              "example": "arc_00009UhD4ongolulWd91Ky"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A single aircraft resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "title": "Aircraft",
+                      "type": "object",
+                      "properties": {
+                        "iata_code": {
+                          "type": "string",
+                          "description": "The three-character IATA code for the aircraft",
+                          "example": "380"
+                        },
+                        "id": {
+                          "type": "string",
+                          "description": "Duffel's unique identifier for the aircraft",
+                          "example": "arc_00009UhD4ongolulWd91Ky"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "The name of the aircraft",
+                          "example": "Airbus Industries A380"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/air/aircraft": {
+      "get": {
+        "summary": "List aircraft",
+        "description": "Retrieves a paginated list of all aircraft.  The results may be returned in any order.",
+        "operationId": "getAircraft",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "tags": [
+          "Supporting Resources",
+          "Aircraft"
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept",
+            "description": "All responses from the API are in JSON format with UTF-8 encoding. An `Accept` header is required with every request.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "application/json"
+              ],
+              "example": "application/json"
+            },
+            "required": true
+          },
+          {
+            "in": "header",
+            "name": "Accept-Encoding",
+            "description": "We recommend enabling compression for responses returned by the API, since they can be very large. To enable compression, send an `Accept-Encoding` header. You'll need to configure your HTTP client to decompress responses. Most clients will have this functionality built-in.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "gzip"
+              ],
+              "example": "gzip"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Duffel-Version",
+            "description": "You'll need to send a `Duffel-Version` header with each request so we know which version of the API you want to use. Currently, the only available API version is `beta`.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "beta"
+              ],
+              "example": "beta"
+            },
+            "required": true
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "The maximum number of records to return per page. Defaults to `50`. \nMay be set to any integer between `1` and `200`. For more information on how to paginate through records, see the [Pagination](/docs/api/overview/pagination\) section.\n",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "minimum": 1,
+              "maximum": 200,
+              "example": 1
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "A cursor pointing to the next page of records. For more information on how to paginate through records, see the [Pagination](/docs/api/overview/pagination\) section.\n",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "g2wAAAACbQAAABBBZXJvbWlzdC1LaGFya2l2bQAAAB="
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "A cursor pointing to the previous page of records. For more information on how to paginate through records, see the [Pagination](/docs/api/overview/pagination\) section.\n",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "g2wAAAACbQAAABBBZXJvbWlzdC1LaGFya2l2bQAAAB="
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A paginated list of aircraft",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "title": "Aircraft",
+                        "type": "object",
+                        "properties": {
+                          "iata_code": {
+                            "type": "string",
+                            "description": "The three-character IATA code for the aircraft",
+                            "example": "380"
+                          },
+                          "id": {
+                            "type": "string",
+                            "description": "Duffel's unique identifier for the aircraft",
+                            "example": "arc_00009UhD4ongolulWd91Ky"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "The name of the aircraft",
+                            "example": "Airbus Industries A380"
+                          }
+                        }
+                      }
+                    },
+                    "meta": {
+                      "title": "Pagination Meta",
+                      "type": "object",
+                      "properties": {
+                        "after": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "`after` is a cursor used to identify the next page of results. If `meta.after` is null, then there are no more results to see.",
+                          "example": "g2wAAAACbQAAABBBZXJvbWlzdC1LaGFya2l2bQAAAB="
+                        },
+                        "before": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "`before` is a cursor used to identify the previous page of results.",
+                          "example": null
+                        },
+                        "limit": {
+                          "type": "integer",
+                          "description": "The limit of entries returned on each page.",
+                          "default": 50,
+                          "minimum": 1,
+                          "maximum": 200,
+                          "nullable": true,
+                          "example": 50
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+})
+```
+
+```elixir
+# Having a way to ingest Open API Schema and turn it into data schemas would be useful.
+# But for us is it easier to get the Serializers and use the fields on them?
+# the problem is they don't actually define all of the fields....
+
+# What we are aiming for is a list of fields I guess to begin with
+# 
+
+# Path.expand("/Users/adz/Duffel/platform/apps/duffel_web/priv/dist/duffel-schema-beta.json")
+# |> File.read!()
+
+defmodule Thing do
+  def generate_fields(schema) do
+    schema
+    |> Jason.decode!()
+    |> Enum.reduce(%{}, fn
+      {"paths", path_item_object}, acc ->
+        fields =
+          Enum.reduce(path_item_object, acc, fn
+            {_path, operation_object}, accum ->
+              Enum.reduce(operation_object, accum, fn operation_object, accumu ->
+                parse_operation_object(operation_object, accumu)
+              end)
+          end)
+
+      {key, value}, acc ->
+        acc
+    end)
+  end
+
+  def parse_operation_object({"get", data}, acc) do
+    module_name = Map.fetch!(data, "operationId") |> Macro.camelize() |> IO.inspect()
+
+    fields =
+      data
+      |> Map.fetch!("responses")
+      |> Map.fetch!("200")
+      |> Map.fetch!("content")
+      |> Map.fetch!("application/json")
+      |> Map.fetch!("schema")
+      |> parse_schema()
+
+    Map.put(acc, module_name, fields)
+  end
+
+  def parse_operation_object({new, _data}, _) do
+    raise "we got a live one: #{new}"
+  end
+
+  defp parse_schema(schema) do
+    case Map.get(schema, "type") |> IO.inspect(label: "one") do
+      "object" ->
+        schema
+        |> Map.fetch!("properties")
+        |> IO.inspect(label: "two")
+        |> Map.fetch!("type")
+        |> Map.fetch!("data")
+        |> Map.fetch!("properties")
+        |> Enum.map(fn {field, v} ->
+          {String.to_atom(field), field, v["type"]}
+        end)
+
+      "array" ->
+        raise "hell"
+    end
+  end
+end
+
+# :ok
+
+Thing.generate_fields(example)
+```
