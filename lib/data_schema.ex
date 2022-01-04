@@ -399,71 +399,188 @@ defmodule DataSchema do
     json
     |> Jason.decode!()
     |> Enum.reduce(%{}, fn
-      {"paths", path_item_object}, acc ->
-        fields =
-          Enum.reduce(path_item_object, acc, fn
-            {_path, operation_object}, accum ->
-              Enum.reduce(operation_object, accum, fn operation_object, accumu ->
-                parse_operation_object(operation_object, accumu)
-              end)
-          end)
+      {"paths", paths_object}, acc ->
+        Enum.reduce(paths_object, acc, fn
+          {_path, path_item_object}, accum ->
+            Enum.reduce(path_item_object, accum, fn path_item_object, accumu ->
+              path_item_object(path_item_object, accumu)
+            end)
+        end)
 
-      {key, value}, acc ->
+      {_key, _value}, acc ->
         acc
     end)
   end
 
-  def parse_operation_object({"get", data}, acc) do
+  def path_item_object({"get", data}, acc) do
     module_name = Map.fetch!(data, "operationId") |> Macro.camelize() |> IO.inspect()
 
     fields =
       data
       |> Map.fetch!("responses")
-      |> Map.fetch!("200")
-      |> Map.fetch!("content")
-      |> Map.fetch!("application/json")
-      |> Map.fetch!("schema")
-      |> parse_schema()
+      |> responses_object([])
 
-    Map.put(acc, module_name, fields)
+    Map.put(acc, "GET " <> module_name, fields)
   end
 
-  def parse_operation_object({new, _data}, _) do
+  def path_item_object({"post", data}, acc) do
+    module_name = Map.fetch!(data, "operationId") |> Macro.camelize() |> IO.inspect()
+
+    # We also need requestBody from here.
+
+    fields =
+      data
+      |> Map.fetch!("responses")
+      |> responses_object([])
+
+    Map.put(acc, "POST " <> module_name, fields)
+  end
+
+  def path_item_object({"put", _data}, acc) do
+    acc
+  end
+
+  def path_item_object({"delete", _data}, acc) do
+    acc
+  end
+
+  def path_item_object({"options", _data}, acc) do
+    acc
+  end
+
+  def path_item_object({new, _data}, _) do
     raise "we got a live one: #{new}"
   end
 
-  defp parse_schema(schema) do
-    case Map.get(schema, "type") do
-      "object" ->
-        data =
-          schema
-          |> Map.fetch!("properties")
-          |> Map.fetch!("data")
+  def responses_object(%{"200" => data}, acc) do
+    data |> response_object(acc)
+  end
 
-        type =
-          data
-          |> Map.fetch!("type")
+  def responses_object(%{"default" => _data}, acc) do
+    acc
+  end
 
-        case type do
-          "array" ->
-            data
-            |> Map.fetch!("items")
-            |> Map.fetch!("properties")
-            |> Enum.map(fn {field, v} ->
-              {String.to_atom(field), field, v["type"]}
-            end)
+  def responses_object(_, acc) do
+    acc
+  end
 
-          "object" ->
-            data
-            |> Map.fetch!("properties")
-            |> Enum.map(fn {field, v} ->
-              {String.to_atom(field), field, v["type"]}
-            end)
+  def response_object(%{"content" => content}, acc) do
+    Enum.reduce(content, acc, fn {content_type, media_type_object}, accu ->
+      media_type_object(content_type, media_type_object, accu)
+    end)
+  end
+
+  def media_type_object("application/json", media_type_object, acc) do
+    media_type_object |> Map.fetch!("schema") |> schema_object(acc)
+  end
+
+  def media_type_object(_content_type, _media_type_object, acc) do
+    acc
+  end
+
+  defp schema_object(%{"type" => "string", "enum" => values}, _acc) do
+    values
+  end
+
+  defp schema_object(%{"type" => "object", "properties" => properties}, acc) do
+    properties |> Map.keys() |> IO.inspect(limit: :infinity, label: "xxxxxxxxx")
+
+    Enum.reduce(properties, acc, fn
+      {key, %{"allOf" => all}}, accu ->
+        fields =
+          Enum.reduce(all, [], fn item, acum ->
+            if Map.delete(item, "description") == %{} do
+              acum
+            else
+              schema_object(item, acum)
+            end
+          end)
+
+        [fields | accu]
+
+      {key, value}, accu ->
+        case value["type"] do
+          "object" -> [{:has_one, {String.to_atom(key), key, schema_object(value, [])}} | accu]
+          "array" -> [{:has_many, {String.to_atom(key), key, schema_object(value, [])}} | accu]
+          "boolean" -> [{:field, {String.to_atom(key), key, "boolean"}} | accu]
+          "integer" -> [{:field, {String.to_atom(key), key, "integer"}} | accu]
+          "number" -> [{:field, {String.to_atom(key), key, "integer"}} | accu]
+          "string" -> [{:field, {String.to_atom(key), key, "string"}} | accu]
+          nil -> raise "#{inspect(value)}"
         end
+    end)
+  end
 
-      "array" ->
-        raise "hell"
-    end
+  defp schema_object(%{"type" => "array", "items" => %{"properties" => properties}}, acc) do
+    properties
+    |> Enum.reduce(acc, fn
+      {key, %{"allOf" => all}}, accu ->
+        fields =
+          Enum.reduce(all, [], fn item, acum ->
+            if Map.delete(item, "description") == %{} do
+              acum
+            else
+              schema_object(item, acum)
+            end
+          end)
+
+        [fields | accu]
+
+      {key, value}, accu ->
+        case value["type"] do
+          "object" -> [{:has_one, {String.to_atom(key), key, schema_object(value, [])}} | accu]
+          "array" -> [{:has_many, {String.to_atom(key), key, schema_object(value, [])}} | accu]
+          "boolean" -> [{:field, {String.to_atom(key), key, "boolean"}} | accu]
+          "integer" -> [{:field, {String.to_atom(key), key, "integer"}} | accu]
+          "number" -> [{:field, {String.to_atom(key), key, "integer"}} | accu]
+          "string" -> [{:field, {String.to_atom(key), key, "string"}} | accu]
+          nil -> raise "#{inspect(value)}"
+        end
+    end)
+  end
+
+  %{
+    "allOf" => [
+      %{
+        "properties" => %{
+          "iata_code" => %{
+            "description" =>
+              "The two-character IATA code for the airline. This may be `null` for non-IATA carriers.",
+            "example" => "BA",
+            "nullable" => true,
+            "type" => "string"
+          },
+          "id" => %{
+            "description" => "Duffel's unique identifier for the airline",
+            "example" => "aln_00001876aqC8c5umZmrRds",
+            "type" => "string"
+          },
+          "name" => %{
+            "description" => "The name of the airline",
+            "example" => "British Airways",
+            "type" => "string"
+          }
+        },
+        "title" => "Airline",
+        "type" => "object"
+      },
+      %{"description" => "The airline which provided the offer"}
+    ]
+  }
+
+  defp schema_object(%{"type" => "array", "items" => items}, acc) do
+    %{"enum" => enum, "type" => string} = items
+
+    schema_object(items, acc)
+    # items
+    # |> IO.inspect(limit: :infinity, label: "yyyyy")
+    # |> Enum.reduce(acc, fn {key, value}, accu ->
+    #   case value["type"] do
+    #     "object" -> [{:has_one, {String.to_atom(key), key, schema_object(value, [])}} | accu]
+    #     "array" -> [{:has_many, {String.to_atom(key), key, schema_object(value, [])}} | accu]
+    #     other_type -> [{:field, {String.to_atom(key), key, other_type}} | acc]
+    #   end
+    # end)
   end
 
   @doc """
