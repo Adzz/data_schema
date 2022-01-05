@@ -2073,7 +2073,7 @@ defmodule DataSchema.SchmasFromOpenApiJsonTest do
       })
 
       assert DataSchema.schemas_from_open_api_json(json) == %{
-               "POST CreateOfferRequest" => [
+               "POST RESPONSECreateOfferRequest" => [
                  has_one:
                    {:data, "data",
                     [
@@ -2081,7 +2081,79 @@ defmodule DataSchema.SchmasFromOpenApiJsonTest do
                         {:slices, "slices",
                          [
                            field: {:origin_type, "origin_type", "string"},
+                           field: {:type, "type", "string"},
+                           field: {:time_zone, "time_zone", "string"},
+                           field: {:name, "name", "string"},
+                           field: {:longitude, "longitude", "integer"},
+                           field: {:latitude, "latitude", "integer"},
+                           field: {:id, "id", "string"},
+                           field: {:icao_code, "icao_code", "string"},
+                           field: {:iata_country_code, "iata_country_code", "string"},
+                           field: {:iata_code, "iata_code", "string"},
+                           field: {:iata_city_code, "iata_city_code", "string"},
+                           field: {:city_name, "city_name", "string"},
+                           field: {:name, "name", "string"},
+                           field: {:id, "id", "string"},
+                           field: {:iata_country_code, "iata_country_code", "string"},
+                           field: {:iata_code, "iata_code", "string"},
+                           has_many:
+                             {:airports, "airports",
+                              [
+                                field: {:time_zone, "time_zone", "string"},
+                                field: {:name, "name", "string"},
+                                field: {:longitude, "longitude", "integer"},
+                                field: {:latitude, "latitude", "integer"},
+                                field: {:id, "id", "string"},
+                                field: {:icao_code, "icao_code", "string"},
+                                field: {:iata_country_code, "iata_country_code", "string"},
+                                field: {:iata_code, "iata_code", "string"},
+                                field: {:city_name, "city_name", "string"},
+                                has_one:
+                                  {:city, "city",
+                                   [
+                                     field: {:name, "name", "string"},
+                                     field: {:id, "id", "string"},
+                                     field: {:iata_country_code, "iata_country_code", "string"},
+                                     field: {:iata_code, "iata_code", "string"}
+                                   ]}
+                              ]},
                            field: {:destination_type, "destination_type", "string"},
+                           field: {:type, "type", "string"},
+                           field: {:time_zone, "time_zone", "string"},
+                           field: {:name, "name", "string"},
+                           field: {:longitude, "longitude", "integer"},
+                           field: {:latitude, "latitude", "integer"},
+                           field: {:id, "id", "string"},
+                           field: {:icao_code, "icao_code", "string"},
+                           field: {:iata_country_code, "iata_country_code", "string"},
+                           field: {:iata_code, "iata_code", "string"},
+                           field: {:iata_city_code, "iata_city_code", "string"},
+                           field: {:city_name, "city_name", "string"},
+                           field: {:name, "name", "string"},
+                           field: {:id, "id", "string"},
+                           field: {:iata_country_code, "iata_country_code", "string"},
+                           field: {:iata_code, "iata_code", "string"},
+                           has_many:
+                             {:airports, "airports",
+                              [
+                                field: {:time_zone, "time_zone", "string"},
+                                field: {:name, "name", "string"},
+                                field: {:longitude, "longitude", "integer"},
+                                field: {:latitude, "latitude", "integer"},
+                                field: {:id, "id", "string"},
+                                field: {:icao_code, "icao_code", "string"},
+                                field: {:iata_country_code, "iata_country_code", "string"},
+                                field: {:iata_code, "iata_code", "string"},
+                                field: {:city_name, "city_name", "string"},
+                                has_one:
+                                  {:city, "city",
+                                   [
+                                     field: {:name, "name", "string"},
+                                     field: {:id, "id", "string"},
+                                     field: {:iata_country_code, "iata_country_code", "string"},
+                                     field: {:iata_code, "iata_code", "string"}
+                                   ]}
+                              ]},
                            field: {:departure_date, "departure_date", "string"}
                          ]},
                       has_many:
@@ -2130,25 +2202,144 @@ defmodule DataSchema.SchmasFromOpenApiJsonTest do
                                              ]}
                                         ]},
                                      field: {:origin_terminal, "origin_terminal", "string"},
+                                     field: {:time_zone, "time_zone", "string"},
+                                     field: {:name, "name", "string"},
+                                     field: {:longitude, "longitude", "integer"},
+                                     field: {:latitude, "latitude", "integer"},
+                                     field: {:id, "id", "string"},
+                                     field: {:icao_code, "icao_code", "string"},
+                                     field: {:iata_country_code, "iata_country_code", "string"},
+                                     field: {:iata_code, "iata_code", "string"},
+                                     field: {:city_name, "city_name", "string"},
+                                     has_one:
+                                       {:city, "city",
+                                        [
+                                          field: {:name, "name", "string"},
+                                          field: {:id, "id", "string"},
+                                          field:
+                                            {:iata_country_code, "iata_country_code", "string"},
+                                          field: {:iata_code, "iata_code", "string"}
+                                        ]},
                                      field:
                                        {:operating_carrier_flight_number,
                                         "operating_carrier_flight_number", "string"},
+                                     field: {:name, "name", "string"},
+                                     field: {:id, "id", "string"},
+                                     field: {:iata_code, "iata_code", "string"},
                                      field:
                                        {:marketing_carrier_flight_number,
                                         "marketing_carrier_flight_number", "string"},
+                                     field: {:name, "name", "string"},
+                                     field: {:id, "id", "string"},
+                                     field: {:iata_code, "iata_code", "string"},
                                      field: {:id, "id", "string"},
                                      field: {:duration, "duration", "string"},
                                      field: {:distance, "distance", "string"},
                                      field:
                                        {:destination_terminal, "destination_terminal", "string"},
+                                     field: {:time_zone, "time_zone", "string"},
+                                     field: {:name, "name", "string"},
+                                     field: {:longitude, "longitude", "integer"},
+                                     field: {:latitude, "latitude", "integer"},
+                                     field: {:id, "id", "string"},
+                                     field: {:icao_code, "icao_code", "string"},
+                                     field: {:iata_country_code, "iata_country_code", "string"},
+                                     field: {:iata_code, "iata_code", "string"},
+                                     field: {:city_name, "city_name", "string"},
+                                     has_one:
+                                       {:city, "city",
+                                        [
+                                          field: {:name, "name", "string"},
+                                          field: {:id, "id", "string"},
+                                          field:
+                                            {:iata_country_code, "iata_country_code", "string"},
+                                          field: {:iata_code, "iata_code", "string"}
+                                        ]},
                                      field: {:departing_at, "departing_at", "string"},
-                                     field: {:arriving_at, "arriving_at", "string"}
+                                     field: {:arriving_at, "arriving_at", "string"},
+                                     field: {:name, "name", "string"},
+                                     field: {:id, "id", "string"},
+                                     field: {:iata_code, "iata_code", "string"}
                                    ]},
                                 field: {:origin_type, "origin_type", "string"},
+                                field: {:type, "type", "string"},
+                                field: {:time_zone, "time_zone", "string"},
+                                field: {:name, "name", "string"},
+                                field: {:longitude, "longitude", "integer"},
+                                field: {:latitude, "latitude", "integer"},
+                                field: {:id, "id", "string"},
+                                field: {:icao_code, "icao_code", "string"},
+                                field: {:iata_country_code, "iata_country_code", "string"},
+                                field: {:iata_code, "iata_code", "string"},
+                                field: {:iata_city_code, "iata_city_code", "string"},
+                                field: {:city_name, "city_name", "string"},
+                                field: {:name, "name", "string"},
+                                field: {:id, "id", "string"},
+                                field: {:iata_country_code, "iata_country_code", "string"},
+                                field: {:iata_code, "iata_code", "string"},
+                                has_many:
+                                  {:airports, "airports",
+                                   [
+                                     field: {:time_zone, "time_zone", "string"},
+                                     field: {:name, "name", "string"},
+                                     field: {:longitude, "longitude", "integer"},
+                                     field: {:latitude, "latitude", "integer"},
+                                     field: {:id, "id", "string"},
+                                     field: {:icao_code, "icao_code", "string"},
+                                     field: {:iata_country_code, "iata_country_code", "string"},
+                                     field: {:iata_code, "iata_code", "string"},
+                                     field: {:city_name, "city_name", "string"},
+                                     has_one:
+                                       {:city, "city",
+                                        [
+                                          field: {:name, "name", "string"},
+                                          field: {:id, "id", "string"},
+                                          field:
+                                            {:iata_country_code, "iata_country_code", "string"},
+                                          field: {:iata_code, "iata_code", "string"}
+                                        ]}
+                                   ]},
                                 field: {:id, "id", "string"},
                                 field: {:fare_brand_name, "fare_brand_name", "string"},
                                 field: {:duration, "duration", "string"},
                                 field: {:destination_type, "destination_type", "string"},
+                                field: {:type, "type", "string"},
+                                field: {:time_zone, "time_zone", "string"},
+                                field: {:name, "name", "string"},
+                                field: {:longitude, "longitude", "integer"},
+                                field: {:latitude, "latitude", "integer"},
+                                field: {:id, "id", "string"},
+                                field: {:icao_code, "icao_code", "string"},
+                                field: {:iata_country_code, "iata_country_code", "string"},
+                                field: {:iata_code, "iata_code", "string"},
+                                field: {:iata_city_code, "iata_city_code", "string"},
+                                field: {:city_name, "city_name", "string"},
+                                field: {:name, "name", "string"},
+                                field: {:id, "id", "string"},
+                                field: {:iata_country_code, "iata_country_code", "string"},
+                                field: {:iata_code, "iata_code", "string"},
+                                has_many:
+                                  {:airports, "airports",
+                                   [
+                                     field: {:time_zone, "time_zone", "string"},
+                                     field: {:name, "name", "string"},
+                                     field: {:longitude, "longitude", "integer"},
+                                     field: {:latitude, "latitude", "integer"},
+                                     field: {:id, "id", "string"},
+                                     field: {:icao_code, "icao_code", "string"},
+                                     field: {:iata_country_code, "iata_country_code", "string"},
+                                     field: {:iata_code, "iata_code", "string"},
+                                     field: {:city_name, "city_name", "string"},
+                                     has_one:
+                                       {:city, "city",
+                                        [
+                                          field: {:name, "name", "string"},
+                                          field: {:id, "id", "string"},
+                                          field:
+                                            {:iata_country_code, "iata_country_code", "string"},
+                                          field: {:iata_code, "iata_code", "string"}
+                                        ]}
+                                   ]},
                                 has_one:
                                   {:conditions, "conditions",
                                    [
@@ -2162,6 +2353,11 @@ defmodule DataSchema.SchmasFromOpenApiJsonTest do
                                         ]}
                                    ]}
                               ]},
+                           field:
+                             {:requires_instant_payment, "requires_instant_payment", "boolean"},
+                           field:
+                             {:price_guarantee_expires_at, "price_guarantee_expires_at", "string"},
+                           field: {:payment_required_by, "payment_required_by", "string"},
                            has_many:
                              {:passengers, "passengers",
                               [
@@ -2180,6 +2376,9 @@ defmodule DataSchema.SchmasFromOpenApiJsonTest do
                            field:
                              {:passenger_identity_documents_required,
                               "passenger_identity_documents_required", "boolean"},
+                           field: {:name, "name", "string"},
+                           field: {:id, "id", "string"},
+                           field: {:iata_code, "iata_code", "string"},
                            field: {:live_mode, "live_mode", "boolean"},
                            field: {:id, "id", "string"},
                            field: {:expires_at, "expires_at", "string"},

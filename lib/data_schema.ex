@@ -420,7 +420,7 @@ defmodule DataSchema do
       |> Map.fetch!("responses")
       |> responses_object([])
 
-    Map.put(acc, "GET " <> module_name, fields)
+    Map.put(acc, "GET RESPONSE" <> module_name, fields)
   end
 
   def path_item_object({"post", data}, acc) do
@@ -433,7 +433,7 @@ defmodule DataSchema do
       |> Map.fetch!("responses")
       |> responses_object([])
 
-    Map.put(acc, "POST " <> module_name, fields)
+    Map.put(acc, "POST RESPONSE" <> module_name, fields)
   end
 
   def path_item_object({"put", _data}, acc) do
@@ -483,48 +483,32 @@ defmodule DataSchema do
   end
 
   defp schema_object(%{"type" => "object", "properties" => properties}, acc) do
-    properties |> Map.keys() |> IO.inspect(limit: :infinity, label: "xxxxxxxxx")
-
-    Enum.reduce(properties, acc, fn
-      {key, %{"allOf" => all}}, accu ->
-        fields =
-          Enum.reduce(all, [], fn item, acum ->
-            if Map.delete(item, "description") == %{} do
-              acum
-            else
-              schema_object(item, acum)
-            end
-          end)
-
-        [fields | accu]
-
-      {key, value}, accu ->
-        case value["type"] do
-          "object" -> [{:has_one, {String.to_atom(key), key, schema_object(value, [])}} | accu]
-          "array" -> [{:has_many, {String.to_atom(key), key, schema_object(value, [])}} | accu]
-          "boolean" -> [{:field, {String.to_atom(key), key, "boolean"}} | accu]
-          "integer" -> [{:field, {String.to_atom(key), key, "integer"}} | accu]
-          "number" -> [{:field, {String.to_atom(key), key, "integer"}} | accu]
-          "string" -> [{:field, {String.to_atom(key), key, "string"}} | accu]
-          nil -> raise "#{inspect(value)}"
-        end
-    end)
+    # properties |> Map.keys() |> IO.inspect(limit: :infinity, label: "xxxxxxxxx")
+    parse_properties(properties, acc)
   end
 
   defp schema_object(%{"type" => "array", "items" => %{"properties" => properties}}, acc) do
+    parse_properties(properties, acc)
+  end
+
+  defp schema_object(%{"type" => "array", "items" => items}, acc) do
+    schema_object(items, acc)
+  end
+
+  defp parse_properties(properties, acc) do
     properties
     |> Enum.reduce(acc, fn
-      {key, %{"allOf" => all}}, accu ->
-        fields =
-          Enum.reduce(all, [], fn item, acum ->
-            if Map.delete(item, "description") == %{} do
-              acum
-            else
-              schema_object(item, acum)
-            end
-          end)
+      {key, %{"oneOf" => one}}, accu ->
 
-        [fields | accu]
+
+      {key, %{"allOf" => all}}, accu ->
+        Enum.reduce(all, accu, fn item, acum ->
+          if Map.get(item, "type") do
+            schema_object(item, acum)
+          else
+            acum
+          end
+        end)
 
       {key, value}, accu ->
         case value["type"] do
@@ -534,54 +518,54 @@ defmodule DataSchema do
           "integer" -> [{:field, {String.to_atom(key), key, "integer"}} | accu]
           "number" -> [{:field, {String.to_atom(key), key, "integer"}} | accu]
           "string" -> [{:field, {String.to_atom(key), key, "string"}} | accu]
-          nil -> raise "#{inspect(value)}"
+          nil -> raise "OH NO #{inspect(value)}"
         end
     end)
   end
 
   %{
-    "allOf" => [
+    "description" =>
+      "The metadata varies by the type of service. It includes further data\nabout the service. For example, for baggages, it may have data about\nsize and weight restrictions.\n",
+    "oneOf" => [
       %{
+        "description" => "An object containing metadata about the service, like the maximum weight and dimensions of the baggage.",
         "properties" => %{
-          "iata_code" => %{
-            "description" =>
-              "The two-character IATA code for the airline. This may be `null` for non-IATA carriers.",
-            "example" => "BA",
+          "maximum_depth_cm" => %{
+            "description" => "The maximum depth that the baggage can have in centimetres",
+            "example" => 75,
             "nullable" => true,
-            "type" => "string"
+            "type" => "number"
           },
-          "id" => %{
-            "description" => "Duffel's unique identifier for the airline",
-            "example" => "aln_00001876aqC8c5umZmrRds",
-            "type" => "string"
+          "maximum_height_cm" => %{
+            "description" => "The maximum height that the baggage can have in centimetres",
+            "example" => 90,
+            "nullable" => true,
+            "type" => "number"
           },
-          "name" => %{
-            "description" => "The name of the airline",
-            "example" => "British Airways",
+          "maximum_length_cm" => %{
+            "description" => "The maximum length that the baggage can have in centimetres",
+            "example" => 90,
+            "nullable" => true,
+            "type" => "number"
+          },
+          "maximum_weight_kg" => %{
+            "description" => "The maximum weight that the baggage can have in kilograms",
+            "example" => 23,
+            "nullable" => true,
+            "type" => "number"
+          },
+          "type" => %{
+            "description" => "The type of the baggage",
+            "enum" => ["checked", "carry_on"],
+            "example" => "checked",
             "type" => "string"
           }
         },
-        "title" => "Airline",
+        "title" => "Service Metadata for a Baggage",
         "type" => "object"
-      },
-      %{"description" => "The airline which provided the offer"}
+      }
     ]
   }
-
-  defp schema_object(%{"type" => "array", "items" => items}, acc) do
-    %{"enum" => enum, "type" => string} = items
-
-    schema_object(items, acc)
-    # items
-    # |> IO.inspect(limit: :infinity, label: "yyyyy")
-    # |> Enum.reduce(acc, fn {key, value}, accu ->
-    #   case value["type"] do
-    #     "object" -> [{:has_one, {String.to_atom(key), key, schema_object(value, [])}} | accu]
-    #     "array" -> [{:has_many, {String.to_atom(key), key, schema_object(value, [])}} | accu]
-    #     other_type -> [{:field, {String.to_atom(key), key, other_type}} | acc]
-    #   end
-    # end)
-  end
 
   @doc """
   Accepts an data schema module and some source data and attempts to create the struct
