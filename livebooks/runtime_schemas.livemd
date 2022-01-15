@@ -1,3 +1,4 @@
+<!-- vim: syntax=markdown -->
 # Runtime Schemas
 
 ## Polymorphism
@@ -15,7 +16,7 @@ train ticket. We need to make  two calls, one to get the price of a ticket and o
 book it. Both responses return the journey we want to make but in slightly different formats:
 
 ```elixir
-# Mix.install [:data_schema, :ecto, :sweet_xml]
+Mix.install([:data_schema, :ecto, :sweet_xml])
 ```
 
 ```elixir
