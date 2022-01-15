@@ -43,7 +43,7 @@ defmodule DataSchema.SchmasFromOpenApiJsonTest do
       }
     })
 
-    assert DataSchema.schemas_from_open_api_json(json) == %{
+    assert DataSchema.OpenApi.schemas_from_open_api_json(json) == %{
              "GET GetAircraftById" => [
                has_one:
                  {:data, "data",
@@ -129,7 +129,7 @@ defmodule DataSchema.SchmasFromOpenApiJsonTest do
     # with config. For example, we can have a map of operationId to module file or whatever
     # which would tell us where to put things. And we could have a map for each type in the
     # open API schema to a casting fn.
-    assert DataSchema.schemas_from_open_api_json(json) == %{
+    assert DataSchema.OpenApi.schemas_from_open_api_json(json) == %{
              "GET GetAircraft" => [
                has_one:
                  {:meta, "meta",
@@ -2072,7 +2072,7 @@ defmodule DataSchema.SchmasFromOpenApiJsonTest do
         }
       })
 
-      assert DataSchema.schemas_from_open_api_json(json) == %{
+      assert DataSchema.OpenApi.schemas_from_open_api_json(json) == %{
                "POST RESPONSECreateOfferRequest" => [
                  has_one:
                    {:data, "data",
