@@ -1,7 +1,7 @@
 defmodule DataSchema.MixProject do
   use Mix.Project
 
-  @version "0.2.3"
+  @version "0.2.4"
   @source_url "https://github.com/Adzz/data_schema"
   def project do
     [
@@ -40,6 +40,7 @@ defmodule DataSchema.MixProject do
     [
       # This is added just so we can test the idea of an XML schema.
       {:sweet_xml, ">= 0.0.0", only: [:dev, :test]},
+      # This will be used for benchmarking.
       {:ecto, ">= 0.0.0", only: [:dev, :test]},
       {:ex_doc, ">= 0.0.0", only: :docs, runtime: false}
     ]

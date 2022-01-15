@@ -1,5 +1,11 @@
 # Changelog for version 0.2.x
 
+## 0.2.4
+
+### Feature
+
+Enables Runtime schemas and parsing to a bare map. Check out the provided docs and livebook for more info!
+
 ## 0.2.3
 
 ### Bug fix
