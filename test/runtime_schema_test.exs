@@ -73,5 +73,54 @@ defmodule DataSchema.RuntimeSchemaTest do
                times: [1, 2, 3]
              }
     end
+
+    test "has_one has_many can be maps" do
+      input = %{
+        "wut" => "great",
+        "beats_per_min" => 10,
+        "times" => [1, 2, 3],
+        "items" => [1400],
+        "stats" => %{"wut" => "YAY"},
+        "xs" => [%{"x" => "1XXX"}, %{"x" => "2XXX"}],
+        "why" => %{"y" => "WHY?!"},
+        "result" => %{"won" => true},
+        "routes" => [%{"length" => 1}]
+      }
+
+      stats_fields = [
+        field: {:bpm, "beats_per_min", &{:ok, &1}},
+        list_of: {:items, "times", &{:ok, &1}},
+        aggregate: {:stats, [field: {:ok, "wut", &{:ok, &1}}], &{:ok, &1}},
+        has_many: {:xs, "xs", {%{}, [field: {:x, "x", &{:ok, &1}}]}},
+        has_one: {:why, "why", {%{}, [field: {:y, "y", &{:ok, &1}}]}}
+      ]
+
+      route_fields = [field: {:length, "length", &{:ok, &1}}]
+      result_fields = [field: {:winner?, "won", &{:ok, &1}}]
+
+      fields = [
+        field: {:bpm, "beats_per_min", &{:ok, &1}},
+        list_of: {:times, "times", &{:ok, &1}},
+        aggregate: {:stats, stats_fields, &{:ok, &1}},
+        has_many: {:routes, "routes", {%{}, route_fields}},
+        has_one: {:result, "result", {%{}, result_fields}}
+      ]
+
+      {:ok, result} = DataSchema.to_struct(input, %Run{}, fields, DataSchema.MapAccessor)
+
+      assert result == %Run{
+               bpm: 10,
+               result: %{winner?: true},
+               routes: [%{length: 1}],
+               stats: %{
+                 bpm: 10,
+                 items: [1, 2, 3],
+                 stats: %{ok: "great"},
+                 why: %{y: "WHY?!"},
+                 xs: [%{x: "1XXX"}, %{x: "2XXX"}]
+               },
+               times: [1, 2, 3]
+             }
+    end
   end
 end

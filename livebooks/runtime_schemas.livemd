@@ -1,0 +1,681 @@
+# Runtime Schemas
+
+## Polymorphism
+
+Usually when we create schemas we use the `data_schema` macro. This moves some of the 
+work to compile time but means that a schema is coupled 1 to 1 to the source data because
+the paths into the source data can't be changed at runtime. Most of the time that is what you
+want, but what can we do if we wish to create the same struct from different input data? 
+There are a few options!
+
+### The Example 🚇 🎟
+
+For each section below we will use the same example. Imagine we are querying an API to book a
+train ticket. We need to make  two calls, one to get the price of a ticket and one to actually
+book it. Both responses return the journey we want to make but in slightly different formats:
+
+```elixir
+# Mix.install [:data_schema, :ecto, :sweet_xml]
+```
+
+```elixir
+price_response = %{
+  "passengers" => [%{"id" => "1"}],
+  "journey" => %{
+    "id" => "1",
+    "from" => "FRANCE",
+    "to" => "ENGLAND",
+    "leaving_at" => "14:00"
+  },
+  "prices" => [
+    %{
+      "passenger_id" => "1",
+      "journey_id" => "1",
+      "total" => "15.00",
+      "currency" => "GBP"
+    }
+  ]
+}
+
+book_response = %{
+  "success" => "true",
+  "passengers" => [%{"id" => "1"}],
+  "trip" => %{
+    "id" => "1",
+    "from" => "FRANCE",
+    "to" => "ENGLAND",
+    "departing" => "14:00"
+  },
+  "costs" => [
+    %{
+      "passenger_id" => "1",
+      "trip_id" => "1",
+      "total" => "15.00",
+      "currency" => "GBP"
+    }
+  ]
+}
+```
+
+We can see they are almost the same except that some of the keys names are different. 
+Our goal is to turn both of these responses into our own representation of a journey that
+looks like this:
+
+```elixir
+our_journey = %{
+  from: "london",
+  to: "FRANCE",
+  departure_time: "14:00",
+  price: 15.00,
+  passengers: [%{id: 1}]
+}
+```
+
+There are a few ways we can think about this.
+
+## The Verbose Way
+
+The first approach is to have two schemas - one for each response - and then define a function 
+that takes each struct defined by the schema and turns it into an `our_journey` map. Our Schemas
+would look like this:
+
+```elixir
+# ============= Price response Schemas ==========================
+
+defmodule Passenger do
+  import DataSchema, only: [data_schema: 1]
+
+  data_schema(field: {:id, "id", &{:ok, &1}})
+end
+
+defmodule Price do
+  import DataSchema, only: [data_schema: 1]
+
+  data_schema(
+    field: {:passenger_id, "passenger_id", &{:ok, &1}},
+    field: {:journey_id, "journey_id", &{:ok, &1}},
+    field: {:total, "total", &__MODULE__.float_type/1},
+    field: {:currency, "currency", &{:ok, &1}}
+  )
+
+  def float_type(value) do
+    case Float.parse(value) do
+      {float, ""} -> {:ok, float}
+      _error -> :error
+    end
+  end
+end
+
+defmodule Journey do
+  import DataSchema, only: [data_schema: 1]
+
+  data_schema(
+    field: {:id, "id", &{:ok, &1}},
+    field: {:from, "from", &{:ok, &1}},
+    field: {:to, "to", &{:ok, &1}},
+    field: {:leaving_at, "leaving_at", &{:ok, &1}}
+  )
+end
+
+defmodule PriceResponse do
+  import DataSchema, only: [data_schema: 1]
+
+  data_schema(
+    has_many: {:passengers, "passengers", Passenger},
+    has_many: {:prices, "prices", Price},
+    has_one: {:journey, "journey", Journey}
+  )
+
+  def to_struct(response) do
+    DataSchema.to_struct(response, __MODULE__)
+  end
+
+  def to_our_journey(%__MODULE__{} = response) do
+    price_map =
+      Enum.reduce(response.prices, %{}, fn price, acc ->
+        Map.put(acc, price.journey_id <> price.passenger_id, price.total)
+      end)
+
+    %{
+      from: response.journey.from,
+      to: response.journey.to,
+      departure_time: response.journey.leaving_at,
+      total_price: total_price(price_map, response.passengers, response.journey),
+      passengers: Enum.map(response.passengers, &Map.from_struct/1)
+    }
+  end
+
+  defp total_price(price_map, passengers, trip) do
+    Enum.reduce(passengers, 0, fn passenger, running_total ->
+      Map.fetch!(price_map, trip.id <> passenger.id) + running_total
+    end)
+  end
+end
+
+# ============= Book response Schemas ==========================
+
+defmodule Cost do
+  import DataSchema, only: [data_schema: 1]
+
+  data_schema(
+    field: {:passenger_id, "passenger_id", &{:ok, &1}},
+    field: {:trip_id, "trip_id", &{:ok, &1}},
+    field: {:total, "total", &__MODULE__.float_type/1},
+    field: {:currency, "currency", &{:ok, &1}}
+  )
+
+  def float_type(value) do
+    case Float.parse(value) do
+      {float, ""} -> {:ok, float}
+      _error -> :error
+    end
+  end
+end
+
+defmodule Trip do
+  import DataSchema, only: [data_schema: 1]
+
+  data_schema(
+    field: {:id, "id", &{:ok, &1}},
+    field: {:from, "from", &{:ok, &1}},
+    field: {:to, "to", &{:ok, &1}},
+    field: {:departing, "departing", &{:ok, &1}}
+  )
+end
+
+defmodule BookResponse do
+  import DataSchema, only: [data_schema: 1]
+
+  data_schema(
+    field: {:success?, "success", &{:ok, &1}},
+    has_many: {:passengers, "passengers", Passenger},
+    has_many: {:costs, "costs", Cost},
+    has_one: {:trip, "trip", Trip}
+  )
+
+  def to_struct(response) do
+    DataSchema.to_struct(response, __MODULE__)
+  end
+
+  def to_our_journey(%__MODULE__{} = response) do
+    cost_map =
+      Enum.reduce(response.costs, %{}, fn cost, acc ->
+        Map.put(acc, cost.trip_id <> cost.passenger_id, cost.total)
+      end)
+
+    %{
+      from: response.trip.from,
+      to: response.trip.to,
+      departure_time: response.trip.departing,
+      total_price: total_price(cost_map, response.passengers, response.trip),
+      passengers: Enum.map(response.passengers, &Map.from_struct/1)
+    }
+  end
+
+  defp total_price(cost_map, passengers, trip) do
+    Enum.reduce(passengers, 0, fn passenger, running_total ->
+      Map.fetch!(cost_map, trip.id <> passenger.id) + running_total
+    end)
+  end
+end
+
+{:ok, struct} = PriceResponse.to_struct(price_response)
+PriceResponse.to_our_journey(struct) |> IO.inspect(label: "PRICE RESPONSE")
+
+{:ok, struct} = BookResponse.to_struct(book_response)
+BookResponse.to_our_journey(struct) |> IO.inspect(label: "BOOK RESPONSE")
+:ok
+```
+
+This has the benefit of being explicit - the code describes exactly what is happening. But it 
+is verbose. We have had to define two `to_our_journey` functions that are very similar but for
+a few key name differences, and our schemas look quite similar too.
+
+Let's look at another approach.
+
+## A Structural Interface
+
+This time we are going to have our schemas all return structs that have the same keys. This means
+we can have one `to_our_journey`.
+
+We choose one representation - the price response in this case - and define our book response
+structs to have the same keys as the price response.
+
+```elixir
+# ============= Price response Schemas ==========================
+
+defmodule Passenger do
+  import DataSchema, only: [data_schema: 1]
+
+  data_schema(field: {:id, "id", &{:ok, &1}})
+end
+
+defmodule Price do
+  import DataSchema, only: [data_schema: 1]
+
+  data_schema(
+    field: {:passenger_id, "passenger_id", &{:ok, &1}},
+    field: {:journey_id, "journey_id", &{:ok, &1}},
+    field: {:total, "total", &__MODULE__.float_type/1},
+    field: {:currency, "currency", &{:ok, &1}}
+  )
+
+  def float_type(value) do
+    case Float.parse(value) do
+      {float, ""} -> {:ok, float}
+      _error -> :error
+    end
+  end
+end
+
+defmodule Journey do
+  import DataSchema, only: [data_schema: 1]
+
+  data_schema(
+    field: {:id, "id", &{:ok, &1}},
+    field: {:from, "from", &{:ok, &1}},
+    field: {:to, "to", &{:ok, &1}},
+    field: {:leaving_at, "leaving_at", &{:ok, &1}}
+  )
+end
+
+defmodule PriceResponse do
+  import DataSchema, only: [data_schema: 1]
+
+  data_schema(
+    has_many: {:passengers, "passengers", Passenger},
+    has_many: {:prices, "prices", Price},
+    has_one: {:journey, "journey", Journey}
+  )
+
+  def to_struct(response) do
+    DataSchema.to_struct(response, __MODULE__)
+  end
+end
+
+# ============= Book response Schemas ==========================
+
+defmodule Cost do
+  import DataSchema, only: [data_schema: 1]
+
+  data_schema(
+    field: {:passenger_id, "passenger_id", &{:ok, &1}},
+    field: {:journey_id, "trip_id", &{:ok, &1}},
+    field: {:total, "total", &__MODULE__.float_type/1},
+    field: {:currency, "currency", &{:ok, &1}}
+  )
+
+  def float_type(value) do
+    case Float.parse(value) do
+      {float, ""} -> {:ok, float}
+      _error -> :error
+    end
+  end
+end
+
+defmodule Trip do
+  import DataSchema, only: [data_schema: 1]
+
+  data_schema(
+    field: {:id, "id", &{:ok, &1}},
+    field: {:from, "from", &{:ok, &1}},
+    field: {:to, "to", &{:ok, &1}},
+    field: {:leaving_at, "departing", &{:ok, &1}}
+  )
+end
+
+defmodule BookResponse do
+  import DataSchema, only: [data_schema: 1]
+
+  data_schema(
+    field: {:success?, "success", &{:ok, &1}},
+    has_many: {:passengers, "passengers", Passenger},
+    has_many: {:prices, "costs", Cost},
+    has_one: {:journey, "trip", Trip}
+  )
+
+  def to_struct(response) do
+    DataSchema.to_struct(response, __MODULE__)
+  end
+end
+
+defmodule OurJourney do
+  def to_our_journey(response) do
+    price_map =
+      Enum.reduce(response.prices, %{}, fn price, acc ->
+        Map.put(acc, price.journey_id <> price.passenger_id, price.total)
+      end)
+
+    %{
+      from: response.journey.from,
+      to: response.journey.to,
+      departure_time: response.journey.leaving_at,
+      total_price: total_price(price_map, response.passengers, response.journey),
+      passengers: Enum.map(response.passengers, &Map.from_struct/1)
+    }
+  end
+
+  defp total_price(price_map, passengers, trip) do
+    Enum.reduce(passengers, 0, fn passenger, running_total ->
+      Map.fetch!(price_map, trip.id <> passenger.id) + running_total
+    end)
+  end
+end
+
+{:ok, price_struct} = PriceResponse.to_struct(price_response)
+OurJourney.to_our_journey(price_struct) |> IO.inspect(label: "PRICE RESPONSE")
+
+{:ok, book_response_struct} = BookResponse.to_struct(book_response)
+OurJourney.to_our_journey(book_response_struct) |> IO.inspect(label: "BOOK RESPONSE")
+:ok
+```
+
+This approach gets us the correct answer but leaves us in a bit of a weird state in the interim.
+To see that look at our `book_response_struct`.
+
+```elixir
+book_response_struct
+```
+
+Our keys now point to badly named things, eg the `:journey` points to a `Trip` struct which is
+confusing. We could rename the struct but we can't call it a `Journey` because that is already
+taken by the `PriceResponse`'s journey.
+
+What we want is to be able to have both schemas turn into the same struct....
+
+## Runtime Schemas
+
+This approach defines a schema at runtime. Doing so decouples the struct that we create from the
+input data a little more and lets us use the exact same struct for one or more sets of schema 
+fields.
+
+```elixir
+defmodule Price do
+  defstruct [:passenger_id, :journey_id, :total, :currency]
+
+  def float_type(value) do
+    case Float.parse(value) do
+      {float, ""} -> {:ok, float}
+      _error -> :error
+    end
+  end
+end
+
+defmodule Journey do
+  defstruct [:id, :from, :to, :leaving_at]
+end
+
+defmodule Passenger do
+  defstruct [:id]
+end
+
+defmodule PriceResponse do
+  defstruct [:prices, :journey, :passengers]
+end
+
+defmodule Responses do
+  def price_response_schema() do
+    journey_fields = [
+      field: {:id, "id", &{:ok, &1}},
+      field: {:from, "from", &{:ok, &1}},
+      field: {:to, "to", &{:ok, &1}},
+      field: {:leaving_at, "leaving_at", &{:ok, &1}}
+    ]
+
+    price_fields = [
+      field: {:passenger_id, "passenger_id", &{:ok, &1}},
+      field: {:journey_id, "journey_id", &{:ok, &1}},
+      field: {:total, "total", &Price.float_type/1},
+      field: {:currency, "currency", &{:ok, &1}}
+    ]
+
+    passenger_fields = [field: {:id, "id", &{:ok, &1}}]
+
+    [
+      has_many: {:passengers, "passengers", {Passenger, passenger_fields}},
+      has_many: {:prices, "prices", {Price, price_fields}},
+      has_one: {:journey, "journey", {Journey, journey_fields}}
+    ]
+  end
+
+  def book_response_schema() do
+    journey_fields = [
+      field: {:id, "id", &{:ok, &1}},
+      field: {:from, "from", &{:ok, &1}},
+      field: {:to, "to", &{:ok, &1}},
+      field: {:leaving_at, "departing", &{:ok, &1}}
+    ]
+
+    cost_fields = [
+      field: {:passenger_id, "passenger_id", &{:ok, &1}},
+      field: {:journey_id, "trip_id", &{:ok, &1}},
+      field: {:total, "total", &Price.float_type/1},
+      field: {:currency, "currency", &{:ok, &1}}
+    ]
+
+    passenger_fields = [field: {:id, "id", &{:ok, &1}}]
+
+    [
+      has_many: {:passengers, "passengers", {Passenger, passenger_fields}},
+      has_many: {:prices, "costs", {Price, cost_fields}},
+      has_one: {:journey, "trip", {Journey, journey_fields}}
+    ]
+  end
+end
+
+accessor = DataSchema.MapAccessor
+fields = Responses.price_response_schema()
+
+{:ok, price} = DataSchema.to_struct(price_response, PriceResponse, fields, accessor)
+OurJourney.to_our_journey(price) |> IO.inspect(label: "PRICE RESPONSE")
+
+fields = Responses.book_response_schema()
+
+{:ok, book} = DataSchema.to_struct(book_response, BookResponse, fields, accessor)
+OurJourney.to_our_journey(book) |> IO.inspect(label: "BOOK RESPONSE")
+
+:ok
+```
+
+This approach:
+
+* allows us to re-use the same struct across many schemas and...
+* ...let's us write one `to_our_journey` function.
+
+This approach has the added avantage of being able to define schemas for structs that you did
+not define yourself, or which are already defined as structs.
+
+Let's explore that idea some more.
+
+## Parsing To Existing Structs
+
+A good example of struct that has already been defined is an ecto schema. Imagine you wanted
+to save some response from an API into the database. You define the ecto schema so you can 
+read and write to the db, but we want to use DataSchema to turn the API response into structured
+data.
+
+If we wanted a direct mapping we couldn't because we couldn't define a data_schema and an ecto
+schema in the same file.
+
+Instead we could use a runtime schema.
+
+```elixir
+defmodule User do
+  use Ecto.Schema
+
+  schema "users" do
+    field(:name, :string)
+    field(:age, :integer)
+  end
+end
+
+defmodule APIResponse do
+  def user_fields() do
+    [
+      field: {:name, "name", &{:ok, &1}},
+      field: {:age, "age", &{:ok, &1}}
+    ]
+  end
+end
+
+response = %{"name" => "ted", "age" => "12"}
+
+accessor = DataSchema.MapAccessor
+fields = APIResponse.user_fields()
+{:ok, user} = DataSchema.to_struct(response, User, fields, accessor)
+```
+
+This works but if we want to save our updates to the database we have to go through a changeset.
+What we need in that case is a map of the changes we want to make that we can put in the 
+changeset before we calling `Repo.update`.
+
+## Parsing To A Map
+
+We are able to parse to a map instead of any particular struct. This is useful for integrating 
+with ecto, in the example above we would change it to this:
+
+```elixir
+{:ok, changes} = DataSchema.to_struct(response, %{}, fields, accessor)
+changes |> IO.inspect(label: "changes")
+
+Ecto.Changeset.change(%User{}, changes)
+```
+
+And to look at our previous example of train tickets we could imagine generating the changes
+we want to make for existing ecto schemas like so:
+
+```elixir
+journey_fields = [
+  field: {:id, "id", &{:ok, &1}},
+  field: {:from, "from", &{:ok, &1}},
+  field: {:to, "to", &{:ok, &1}},
+  field: {:leaving_at, "leaving_at", &{:ok, &1}}
+]
+
+cost_fields = [
+  field: {:passenger_id, "passenger_id", &{:ok, &1}},
+  field: {:journey_id, "journey_id", &{:ok, &1}},
+  field: {:total, "total", &Price.float_type/1},
+  field: {:currency, "currency", &{:ok, &1}}
+]
+
+passenger_fields = [field: {:id, "id", &{:ok, &1}}]
+
+response_fields = [
+  has_many: {:passengers, "passengers", {%{}, passenger_fields}},
+  has_many: {:prices, "prices", {%{}, cost_fields}},
+  has_one: {:journey, "journey", {%{}, journey_fields}}
+]
+
+accessor = DataSchema.MapAccessor
+
+price_response = %{
+  "passengers" => [%{"id" => "1"}],
+  "journey" => %{
+    "id" => "1",
+    "from" => "FRANCE",
+    "to" => "ENGLAND",
+    "leaving_at" => "14:00"
+  },
+  "prices" => [
+    %{
+      "passenger_id" => "1",
+      "journey_id" => "1",
+      "total" => "15.00",
+      "currency" => "GBP"
+    }
+  ]
+}
+
+{:ok, price_changes} = DataSchema.to_struct(price_response, %{}, response_fields, accessor)
+price_changes
+```
+
+## Inline Schemas - XML -> Ecto
+
+If we combine this with a different data accessor we can get to a place where we generate 
+changes from an XML API response and seamlessly integrate with Ecto schemas to write to
+a db table.
+
+```elixir
+defmodule XpathAccessor do
+  @behaviour DataSchema.DataAccessBehaviour
+  import SweetXml, only: [sigil_x: 2]
+
+  @impl true
+  def field(data, path) do
+    case SweetXml.xpath(data, ~x"#{path}"s) do
+      "" -> nil
+      value -> value
+    end
+  end
+
+  @impl true
+  def list_of(data, path) do
+    SweetXml.xpath(data, ~x"#{path}"l)
+  end
+
+  @impl true
+  def has_one(data, path) do
+    SweetXml.xpath(data, ~x"#{path}")
+  end
+
+  @impl true
+  def has_many(data, path) do
+    SweetXml.xpath(data, ~x"#{path}"l)
+  end
+end
+
+price_xml = """
+<Response>
+  <User name="Jeff" age="12" />
+</Response>
+"""
+
+response_fields = [
+  field: {:name, "/Response/User/@name", &{:ok, &1}},
+  field: {:age, "/Response/User/@age", fn x -> {:ok, elem(Integer.parse(x), 0)} end}
+]
+
+{:ok, changes} = DataSchema.to_struct(price_xml, %{}, response_fields, XpathAccessor)
+Ecto.Changeset.change(%User{}, changes)
+```
+
+```elixir
+price_xml = """
+<Response>
+  <Passengers>
+    <Passenger id="1" />
+  </Passengers>
+  <Journey id="1" from="FRANCE" to="ENGLAND" leaving_at="14:00" />
+  <Prices>
+    <Price passenger_id="1" journey_id="1" total="15.00" currency="GBP" />
+  </Prices>
+</Response>
+"""
+
+journey_fields = [
+  field: {:id, "./@id", &{:ok, &1}},
+  field: {:from, "./@from", &{:ok, &1}},
+  field: {:to, "./@to", &{:ok, &1}},
+  field: {:leaving_at, "./@leaving_at", &{:ok, &1}}
+]
+
+cost_fields = [
+  field: {:passenger_id, "./@passenger_id", &{:ok, &1}},
+  field: {:journey_id, "./@journey_id", &{:ok, &1}},
+  field: {:total, "./@total", &Price.float_type/1},
+  field: {:currency, "./@currency", &{:ok, &1}}
+]
+
+passenger_fields = [field: {:id, "./@id", &{:ok, &1}}]
+
+response_fields = [
+  has_many: {:passengers, "//Passengers/Passenger", {%{}, passenger_fields}},
+  has_many: {:prices, "//Price", {%{}, cost_fields}},
+  has_one: {:journey, "/Response/Journey", {%{}, journey_fields}}
+]
+
+{:ok, changes} = DataSchema.to_struct(price_xml, %{}, response_fields, XpathAccessor)
+changes
+```

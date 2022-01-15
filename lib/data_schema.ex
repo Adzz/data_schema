@@ -429,6 +429,10 @@ defmodule DataSchema do
     to_struct(data, {schema, inline_fields}, [])
   end
 
+  def to_struct(data, {%{} = schema, inline_fields}) do
+    to_struct(data, {schema, inline_fields}, [])
+  end
+
   def to_struct(data, schema) do
     to_struct(data, schema, [])
   end
@@ -440,6 +444,11 @@ defmodule DataSchema do
   def to_struct(data, {schema, inline_fields}, opts) when is_atom(schema) do
     accessor = schema.__data_accessor()
     to_struct(data, struct(schema, %{}), inline_fields, accessor, opts)
+  end
+
+  def to_struct(data, {%{} = schema, inline_fields}, opts) do
+    accessor = schema.__data_accessor()
+    to_struct(data, schema, inline_fields, accessor, opts)
   end
 
   def to_struct(data, schema, opts) when is_atom(schema) do
@@ -581,7 +590,7 @@ defmodule DataSchema do
         end
 
       value ->
-        case to_struct(value, struct(cast_module, %{}), inline_fields, accessor, []) do
+        case to_struct(value, cast_module, inline_fields, accessor, []) do
           # It's not possible for to_struct to return nil so we don't handle that case here
           {:ok, value} -> {:cont, update_struct(struct, field, value)}
           {:error, error} -> {:halt, {:error, %DataSchema.Errors{errors: [{field, error}]}}}
@@ -632,7 +641,7 @@ defmodule DataSchema do
           # defines one?
           # using the parent always doesn't work for compile time schemas. So that's hout
           # now doing one thing for both is either confusing or complicated.
-          case to_struct(datum, struct(cast_module, %{}), inline_fields, accessor, []) do
+          case to_struct(datum, cast_module, inline_fields, accessor, []) do
             {:ok, struct} -> {:cont, [struct | acc]}
             {:error, error} -> {:halt, {:error, %DataSchema.Errors{errors: [{field, error}]}}}
             :error -> {:halt, :error}

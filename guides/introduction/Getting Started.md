@@ -22,7 +22,7 @@ field {:content, "text", &cast_string/1}
 #                            casting function
 ```
 
-This says in the source data there will be a field called `:text`. When creating a struct we should get the data under that field and pass it too `cast_string/1`. The result of that function will be put in the resultant struct under the key `:content`.
+This says in the source data there will be a field called `"text"`. When creating a struct we should get the data under that field and pass it too `cast_string/1`. The result of that function will be put in the resultant struct under the key `:content`.
 
 There are 5 kinds of struct fields we could want:
 
