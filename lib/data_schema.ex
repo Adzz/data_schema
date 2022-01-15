@@ -425,30 +425,12 @@ defmodule DataSchema do
     to_struct(data, schema, [])
   end
 
-  def to_struct(data, {schema, inline_fields}) when is_atom(schema) do
-    to_struct(data, {schema, inline_fields}, [])
-  end
-
-  def to_struct(data, {%{} = schema, inline_fields}) do
-    to_struct(data, {schema, inline_fields}, [])
-  end
-
   def to_struct(data, schema) do
     to_struct(data, schema, [])
   end
 
   def to_struct(data, %schema{}, opts) do
     to_struct(data, schema, opts)
-  end
-
-  def to_struct(data, {schema, inline_fields}, opts) when is_atom(schema) do
-    accessor = schema.__data_accessor()
-    to_struct(data, struct(schema, %{}), inline_fields, accessor, opts)
-  end
-
-  def to_struct(data, {%{} = schema, inline_fields}, opts) do
-    accessor = schema.__data_accessor()
-    to_struct(data, schema, inline_fields, accessor, opts)
   end
 
   def to_struct(data, schema, opts) when is_atom(schema) do
