@@ -1,4 +1,5 @@
 <!-- vim: syntax=markdown -->
+
 # Runtime Schemas
 
 ## Polymorphism
@@ -627,7 +628,7 @@ defmodule XpathAccessor do
   end
 end
 
-price_xml = """
+xml = """
 <Response>
   <User name="Jeff" age="12" />
 </Response>
@@ -638,7 +639,7 @@ response_fields = [
   field: {:age, "/Response/User/@age", fn x -> {:ok, elem(Integer.parse(x), 0)} end}
 ]
 
-{:ok, changes} = DataSchema.to_struct(price_xml, %{}, response_fields, XpathAccessor)
+{:ok, changes} = DataSchema.to_struct(xml, %{}, response_fields, XpathAccessor)
 Ecto.Changeset.change(%User{}, changes)
 ```
 
