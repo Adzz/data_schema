@@ -1,5 +1,24 @@
 # Changelog for version 0.2.x
 
+## 0.2.6
+
+### Bug fix
+
+Fix schema validations and error message.
+
+We were not allowing valid schema syntax for an inline schema (ie a
+runtime schema that is provided at compile time), and our error message
+was wrong.
+
+Now we correctly allow:
+
+```elixir
+has_many: {:dep, "./Dep", {%{}, @place_schema}},
+has_one: {:arrival, "./Arrival", {%{}, @place_schema}},
+```
+
+And similar. The last fix had a bug in it this one actually fixes it.
+
 ## 0.2.5
 
 ### Bug fix
