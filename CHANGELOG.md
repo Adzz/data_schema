@@ -1,5 +1,11 @@
 # Changelog for version 0.2.x
 
+## 0.2.7
+
+### Improvement
+
+Bump ex_doc to get newer looking docs.
+
 ## 0.2.6
 
 ### Bug fix
