@@ -278,9 +278,9 @@ defmodule DataSchema do
                           Provided schema: #{inspect(schema)}
                           """
 
-                        {type, {_, _, module, _}}, _acc
+                        {type, {_, _, {module, _}, _}}, _acc
                         when type in [:has_one, :has_many] and not is_atom(module) and
-                               not is_list(module) ->
+                               not is_map(module) ->
                           message = """
                           #{type} fields require a DataSchema module as their casting function:
 
@@ -297,10 +297,96 @@ defmodule DataSchema do
                               ]
 
                               data_schema([
-                                #{type}: {:foo, "path", @foo_fields}
-                                #                          ^^
-                                # Or a list of fields inline.
+                                #{type}: {:foo, "path", {%{}, @foo_fields}}
                               ])
+
+                          Or for an inline struct:
+
+                              @foo_fields [
+                                field: {:bar, "bar", &{:ok, to_string(&1)}}
+                              ]
+
+                              data_schema([
+                                #{type}: {:foo, "path", {SomeStructModule, @foo_fields}}
+                              ])
+
+
+                          You provided the following as a schema: #{inspect(module)}.
+                          Ensure you haven't used the wrong field type.
+                          """
+
+                          raise DataSchema.InvalidSchemaError, message: message
+
+                        {type, {_, _, module, _}}, _acc
+                        when type in [:has_one, :has_many] and not is_atom(module) ->
+                          message = """
+                          #{type} fields require a DataSchema module as their casting function:
+
+                              data_schema([
+                                #{type}: {:foo, "path", Foo}
+                                #                        ^^
+                                # Should be a DataSchema module
+                              ])
+
+                          Or an inline list of fields like so:
+
+                              @foo_fields [
+                                field: {:bar, "bar", &{:ok, to_string(&1)}}
+                              ]
+
+                              data_schema([
+                                #{type}: {:foo, "path", {%{}, @foo_fields}}
+                              ])
+
+                          Or for an inline struct:
+
+                              @foo_fields [
+                                field: {:bar, "bar", &{:ok, to_string(&1)}}
+                              ]
+
+                              data_schema([
+                                #{type}: {:foo, "path", {SomeStructModule, @foo_fields}}
+                              ])
+
+
+                          You provided the following as a schema: #{inspect(module)}.
+                          Ensure you haven't used the wrong field type.
+                          """
+
+                          raise DataSchema.InvalidSchemaError, message: message
+
+                        {type, {_, _, {module, _}}}, _acc
+                        when type in [:has_one, :has_many] and not is_atom(module) and
+                               not is_map(module) ->
+                          message = """
+                          #{type} fields require a DataSchema module as their casting function:
+
+                              data_schema([
+                                #{type}: {:foo, "path", Foo}
+                                #                        ^^
+                                # Should be a DataSchema module
+                              ])
+
+                          Or an inline list of fields like so:
+
+                              @foo_fields [
+                                field: {:bar, "bar", &{:ok, to_string(&1)}}
+                              ]
+
+                              data_schema([
+                                #{type}: {:foo, "path", {%{}, @foo_fields}}
+                              ])
+
+                          Or for an inline struct:
+
+                              @foo_fields [
+                                field: {:bar, "bar", &{:ok, to_string(&1)}}
+                              ]
+
+                              data_schema([
+                                #{type}: {:foo, "path", {SomeStructModule, @foo_fields}}
+                              ])
+
 
                           You provided the following as a schema: #{inspect(module)}.
                           Ensure you haven't used the wrong field type.
@@ -309,8 +395,7 @@ defmodule DataSchema do
                           raise DataSchema.InvalidSchemaError, message: message
 
                         {type, {_, _, module}}, _acc
-                        when type in [:has_one, :has_many] and not is_atom(module) and
-                               not is_list(module) ->
+                        when type in [:has_one, :has_many] and not is_atom(module) ->
                           message = """
                           #{type} fields require a DataSchema module as their casting function:
 
@@ -327,10 +412,19 @@ defmodule DataSchema do
                               ]
 
                               data_schema([
-                                #{type}: {:foo, "path", @foo_fields}
-                                #                          ^^
-                                # Or a list of fields inline.
+                                #{type}: {:foo, "path", {%{}, @foo_fields}}
                               ])
+
+                          Or for an inline struct:
+
+                              @foo_fields [
+                                field: {:bar, "bar", &{:ok, to_string(&1)}}
+                              ]
+
+                              data_schema([
+                                #{type}: {:foo, "path", {SomeStructModule, @foo_fields}}
+                              ])
+
 
                           You provided the following as a schema: #{inspect(module)}.
                           Ensure you haven't used the wrong field type.

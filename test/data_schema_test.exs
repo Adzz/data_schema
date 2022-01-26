@@ -216,12 +216,21 @@ defmodule DataSchemaTest do
           ]
 
           data_schema([
-            has_one: {:foo, "path", @foo_fields}
-            #                          ^^
-            # Or a list of fields inline.
+            has_one: {:foo, "path", {%{}, @foo_fields}}
           ])
 
-      You provided the following as a schema: \"ahhh\".
+      Or for an inline struct:
+
+          @foo_fields [
+            field: {:bar, "bar", &{:ok, to_string(&1)}}
+          ]
+
+          data_schema([
+            has_one: {:foo, "path", {SomeStructModule, @foo_fields}}
+          ])
+
+
+      You provided the following as a schema: "ahhh".
       Ensure you haven't used the wrong field type.
       """
 
