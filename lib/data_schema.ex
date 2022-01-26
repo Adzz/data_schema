@@ -278,7 +278,7 @@ defmodule DataSchema do
                           Provided schema: #{inspect(schema)}
                           """
 
-                        {type, {_, _, {module, _}, _}}, _acc
+                        {type, {_, _, {module, _}, _opts}}, _acc
                         when type in [:has_one, :has_many] and not is_atom(module) and
                                not is_map(module) ->
                           message = """
@@ -317,8 +317,11 @@ defmodule DataSchema do
 
                           raise DataSchema.InvalidSchemaError, message: message
 
-                        {type, {_, _, module, _}}, _acc
-                        when type in [:has_one, :has_many] and not is_atom(module) ->
+                        # the tuple case is handed above so we need to make sure we _dont
+                        # error if the module is a tuple. So a tuple is allowed
+                        {type, {_, _, module, _opts}}, _acc
+                        when type in [:has_one, :has_many] and not is_atom(module) and
+                               not is_tuple(module) ->
                           message = """
                           #{type} fields require a DataSchema module as their casting function:
 
@@ -355,7 +358,7 @@ defmodule DataSchema do
 
                           raise DataSchema.InvalidSchemaError, message: message
 
-                        {type, {_, _, {module, _}}}, _acc
+                        {type, {_, _, {module, _inline}}}, _acc
                         when type in [:has_one, :has_many] and not is_atom(module) and
                                not is_map(module) ->
                           message = """
@@ -394,8 +397,11 @@ defmodule DataSchema do
 
                           raise DataSchema.InvalidSchemaError, message: message
 
+                        # the tuple case is handed above so we need to make sure we _dont
+                        # error if the module is a tuple. So a tuple is allowed
                         {type, {_, _, module}}, _acc
-                        when type in [:has_one, :has_many] and not is_atom(module) ->
+                        when type in [:has_one, :has_many] and not is_atom(module) and
+                               not is_tuple(module) ->
                           message = """
                           #{type} fields require a DataSchema module as their casting function:
 

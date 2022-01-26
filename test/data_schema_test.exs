@@ -248,6 +248,42 @@ defmodule DataSchemaTest do
         end
       end)
     end
+
+    test "we allow mixing compile time and inline schemas" do
+      defmodule BlogPostInline do
+        import DataSchema, only: [data_schema: 1]
+
+        data_schema(
+          has_one: {:draft, "draft", {DraftPost, []}},
+          has_many:
+            {:commenta, "comments", {%{}, [field: {:text, "text", &DataSchemaTest.to_stringg/1}]}}
+        )
+      end
+
+      assert BlogPostInline.__data_schema_fields() == [
+               has_one: {:draft, "draft", {DataSchemaTest.DraftPost, []}},
+               has_many:
+                 {:commenta, "comments",
+                  {%{}, [field: {:text, "text", &DataSchemaTest.to_stringg/1}]}}
+             ]
+
+      defmodule BlogPostInlineStruct do
+        import DataSchema, only: [data_schema: 1]
+
+        data_schema(
+          has_one: {:draft, "draft", {%DraftPost{content: nil}, []}},
+          has_many:
+            {:commenta, "comments", {%{}, [field: {:text, "text", &DataSchemaTest.to_stringg/1}]}}
+        )
+      end
+
+      assert BlogPostInlineStruct.__data_schema_fields() == [
+               has_one: {:draft, "draft", {%DataSchemaTest.DraftPost{content: nil}, []}},
+               has_many:
+                 {:commenta, "comments",
+                  {%{}, [field: {:text, "text", &DataSchemaTest.to_stringg/1}]}}
+             ]
+    end
   end
 
   # ============================== to_struct/2==============================================
