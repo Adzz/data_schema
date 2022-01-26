@@ -35,6 +35,23 @@ There are 5 kinds of struct fields we could want:
 (You end up with a list of structs defined by the provided schema). Similar to has_many in ecto
 5. `aggregate` - The value will be a casted value formed from multiple bits of data in the source.
 
+Available options are:
+
+    - `:optional?` - specifies whether or not the field in the struct should be included in
+    the `@enforce_keys` for the struct. By default all fields are required but you can mark
+    them as optional by setting this to `true`. This will also be checked when creating a
+    struct with `DataSchema.to_struct/2` returning an error if the required field is null.
+
+For example:
+
+                defmodule Sandwich do
+                  require DataSchema
+
+                  DataSchema.data_schema([
+                    field: {:type, "the_type", &{:ok, String.upcase(&1)}, optional?: true},
+                  ])
+                end
+
 To see this better let's look at a very simple example. Assume our input data looks like this:
 
 ```elixir
