@@ -1,5 +1,11 @@
 # Changelog for version 0.2.x
 
+## 0.2.8
+
+### Improvement
+
+Improve the error message when the cast function does not return an okay tuple.
+
 ## 0.2.7
 
 ### Improvement
