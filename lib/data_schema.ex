@@ -652,6 +652,9 @@ defmodule DataSchema do
 
           :error ->
             {:halt, :error}
+
+          other_value ->
+            raise_incorrect_cast_function_error(field, other_value)
         end
     end
   end
@@ -810,6 +813,9 @@ defmodule DataSchema do
 
             :error ->
               {:halt, :error}
+
+            other_value ->
+              raise_incorrect_cast_function_error(field, other_value)
           end
         end)
         |> case do
@@ -850,8 +856,23 @@ defmodule DataSchema do
 
           :error ->
             {:halt, :error}
+
+          other_value ->
+            raise_incorrect_cast_function_error(field, other_value)
         end
     end
+  end
+
+  defp raise_incorrect_cast_function_error(field, value) do
+    message = """
+    Casting error for field #{field}, cast function should return one of the following:
+
+      {:ok, any()} | :error | {:error, any()}
+
+    Cast function returned #{inspect(value)}
+    """
+
+    raise DataSchema.InvalidCastFunction, message: message
   end
 
   # Sometimes the data we are creating is a map, sometimes a struct. When it is a struct
