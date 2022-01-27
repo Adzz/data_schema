@@ -42,6 +42,7 @@ defmodule DataSchema.MixProject do
       {:sweet_xml, ">= 0.0.0", only: [:dev, :test]},
       # This will be used for benchmarking.
       {:ecto, ">= 0.0.0", only: [:dev, :test]},
+      # {:livebook_helpers, "~> 0.0.1", only: :dev},
       {:ex_doc, ">= 0.0.0", only: :docs, runtime: false}
     ]
   end
