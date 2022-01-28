@@ -1,6 +1,8 @@
+<!-- vim: syntax=markdown -->
+
 # DataSchema
 
-<!-- README START -->
+
 Data schemas are declarative descriptions of how to create a struct from some input data. You can set up different schemas to handle different kinds of input data. By default we assume the incoming data is a map, but you can configure schemas to work with any arbitrary data input including XML and json.
 
 Data Schemas really shine when working with API responses - converting the response into trusted internal data easily and efficiently.
@@ -45,26 +47,26 @@ struct with `DataSchema.to_struct/2` returning an error if the required field is
 
 For example:
 
-    defmodule Sandwich do
-      require DataSchema
+```elixir
+defmodule Sandwich do
+  require DataSchema
 
-      DataSchema.data_schema([
-        field: {:type, "the_type", &{:ok, String.upcase(&1)}, optional?: true},
-      ])
-    end
-
+  DataSchema.data_schema(field: {:type, "the_type", &{:ok, String.upcase(&1)}, optional?: true})
+end
+```
 To see this better let's look at a very simple example. Assume our input data looks like this:
 
 ```elixir
 source_data = %{
   "content" => "This is a blog post",
-  "comments" => [%{"text" => "This is a comment"},%{"text" => "This is another comment"}],
+  "comments" => [%{"text" => "This is a comment"}, %{"text" => "This is another comment"}],
   "draft" => %{"content" => "This is a draft blog post"},
   "date" => "2021-11-11",
   "time" => "14:00:00",
-  "metadata" => %{ "rating" => 0}
+  "metadata" => %{"rating" => 0}
 }
 ```
+
 
 And now let's assume the struct we wish to make is this one:
 
@@ -77,23 +79,20 @@ And now let's assume the struct we wish to make is this one:
 }
 ```
 
+
 We can describe the following schemas to enable this:
 
 ```elixir
 defmodule DraftPost do
   import DataSchema, only: [data_schema: 1]
 
-  data_schema([
-    field: {:content, "content", &{:ok, to_string(&1)}}
-  ])
+  data_schema(field: {:content, "content", &{:ok, to_string(&1)}})
 end
 
 defmodule Comment do
   import DataSchema, only: [data_schema: 1]
 
-  data_schema([
-    field: {:text, "text", &{:ok, to_string(&1)}}
-  ])
+  data_schema(field: {:text, "text", &{:ok, to_string(&1)}})
 end
 
 defmodule BlogPost do
@@ -103,25 +102,26 @@ defmodule BlogPost do
     field: {:date, "date", &Date.from_iso8601/1},
     field: {:time, "time", &Time.from_iso8601/1}
   ]
-  data_schema([
+  data_schema(
     field: {:content, "content", &{:ok, to_string(&1)}},
     has_many: {:comments, "comments", Comment},
     has_one: {:draft, "draft", DraftPost},
-    aggregate: {:post_datetime, @date_time_fields, &NaiveDateTime.new(&1.date, &1.time)},
-  ])
+    aggregate: {:post_datetime, @date_time_fields, &NaiveDateTime.new(&1.date, &1.time)}
+  )
 end
 ```
+
 
 Then to transform some input data into the desired struct we can call `DataSchema.to_struct/2` which works recursively to transform the input data into the struct defined by the schema.
 
 ```elixir
 source_data = %{
   "content" => "This is a blog post",
-  "comments" => [%{"text" => "This is a comment"},%{"text" => "This is another comment"}],
+  "comments" => [%{"text" => "This is a comment"}, %{"text" => "This is another comment"}],
   "draft" => %{"content" => "This is a draft blog post"},
   "date" => "2021-11-11",
   "time" => "14:00:00",
-  "metadata" => %{ "rating" => 0}
+  "metadata" => %{"rating" => 0}
 }
 
 DataSchema.to_struct(source_data, BlogPost)
@@ -135,6 +135,7 @@ DataSchema.to_struct(source_data, BlogPost)
 }
 ```
 
+
 So imagine the input data came from an API response:
 
 ```elixir
@@ -143,6 +144,7 @@ with {:ok, %{status: 200, response_body: body}} <- Http.get("https://www.my_thin
   DataSchema.to_struct(source_data, BlogPost)
 end
 ```
+
 
 ## Different Source Data Types
 
@@ -153,18 +155,14 @@ defmodule DraftPost do
   import DataSchema, only: [data_schema: 1]
 
   @data_accessor DataSchema.MapAccessor
-  data_schema([
-    field: {:content, "content", &{:ok, to_string(&1)}}
-  ])
+  data_schema(field: {:content, "content", &{:ok, to_string(&1)}})
 end
 
 defmodule Comment do
   import DataSchema, only: [data_schema: 1]
 
   @data_accessor DataSchema.MapAccessor
-  data_schema([
-    field: {:text, "text", &{:ok, to_string(&1)}}
-  ])
+  data_schema(field: {:text, "text", &{:ok, to_string(&1)}})
 end
 
 defmodule BlogPost do
@@ -175,14 +173,15 @@ defmodule BlogPost do
     field: {:date, "date", &Date.from_iso8601/1},
     field: {:time, "time", &Time.from_iso8601/1}
   ]
-  data_schema([
+  data_schema(
     field: {:content, "content", &{:ok, to_string(&1)}},
     has_many: {:comments, "comments", Comment},
     has_one: {:draft, "draft", DraftPost},
-    aggregate: {:post_datetime, @date_time_fields, &NaiveDateTime.new(&1.date, &1.time)},
-  ])
+    aggregate: {:post_datetime, @date_time_fields, &NaiveDateTime.new(&1.date, &1.time)}
+  )
 end
 ```
+
 When creating the struct DataSchema will call the relevant function for the field we are creating, passing it the source data and the path to the value(s) in the source. Our `DataSchema.MapAccessor` looks like this:
 
 ```elixir
@@ -211,6 +210,7 @@ defmodule DataSchema.MapAccessor do
 end
 ```
 
+
 To save repeating `@data_accessor DataSchema.MapAccessor` on all of your schemas you could use a `__using__` macro like so:
 
 ```elixir
@@ -223,17 +223,17 @@ defmodule MapSchema do
   end
 end
 ```
+
 Then use it like so:
 
 ```elixir
 defmodule DraftPost do
   use MapSchema
 
-  data_schema([
-    field: {:content, "content", &{:ok, to_string(&1)}}
-  ])
+  data_schema(field: {:content, "content", &{:ok, to_string(&1)}})
 end
 ```
+
 
 This means should we want to change how we access data (say we wanted to use `Map.fetch!` instead of `Map.get`) we would only need to change the accessor used in one place - inside the `__using__` macro. It also gives you a handy place to provide other functions for the structs that get created, perhaps implementing a default Inspect protocol implementation for example:
 
@@ -257,6 +257,7 @@ defmodule MapSchema do
   end
 end
 ```
+
 
 This could help ensure you never log sensitive fields by requiring you to explicitly implement an inspect protocol for a struct in order to see the fields in it.
 
@@ -291,6 +292,7 @@ defmodule XpathAccessor do
 end
 ```
 
+
 As we can see our accessor uses the library [Sweet XML](https://github.com/kbrw/sweet_xml) to access the XML. That means if we wanted to change the library later we would only need to alter this one module for all of our schemas to benefit from the change.
 
 Our source data looks like this:
@@ -310,6 +312,7 @@ source_data = """
 """
 ```
 
+
 Let's define our schemas like so:
 
 ```elixir
@@ -317,18 +320,14 @@ defmodule DraftPost do
   import DataSchema, only: [data_schema: 1]
 
   @data_accessor XpathAccessor
-  data_schema([
-    field: {:content, "./Content/text()", &{:ok, to_string(&1)}}
-  ])
+  data_schema(field: {:content, "./Content/text()", &{:ok, to_string(&1)}})
 end
 
 defmodule Comment do
   import DataSchema, only: [data_schema: 1]
 
   @data_accessor XpathAccessor
-  data_schema([
-    field: {:text, "./text()", &{:ok, to_string(&1)}}
-  ])
+  data_schema(field: {:text, "./text()", &{:ok, to_string(&1)}})
 end
 
 defmodule BlogPost do
@@ -337,16 +336,17 @@ defmodule BlogPost do
   @data_accessor XpathAccessor
   @datetime_fields [
     field: {:date, "/Blog/@date", &Date.from_iso8601/1},
-    field: {:time, "/Blog/@time", &Time.from_iso8601/1},
+    field: {:time, "/Blog/@time", &Time.from_iso8601/1}
   ]
-  data_schema([
+  data_schema(
     field: {:content, "/Blog/Content/text()", &{:ok, to_string(&1)}},
     has_many: {:comments, "//Comment", Comment},
     has_one: {:draft, "/Blog/Draft", DraftPost},
-    aggregate: {:post_datetime, @datetime_fields, &NaiveDateTime.new(&1.date, &1.time)},
-  ])
+    aggregate: {:post_datetime, @datetime_fields, &NaiveDateTime.new(&1.date, &1.time)}
+  )
 end
 ```
+
 
 And now we can transform:
 
@@ -368,65 +368,144 @@ DataSchema.to_struct(source_data, BlogPost)
 
 # This will output:
 
- %BlogPost{
-   comments: [
-     %Comment{text: "This is a comment"},
-     %Comment{text: "This is another comment"}
-   ],
-   content: "This is a blog post",
-   draft: %DraftPost{content: "This is a draft blog post"},
-   post_datetime: ~N[2021-11-11 14:00:00]
- }
-```
-<!-- README END -->
-
-### JSONPath Schemas
-
-This is left as an exercise for the reader but hopefully you can see how you could extend this idea to allow for json data and JSONPaths pointing to the data in the schemas.
-
-### Guides
-
-See the [docs](https://hexdocs.pm/data_schema/DataSchema.html) or the [guides in this repo](https://github.com/Adzz/data_schema/tree/main/guides) for more details.
-
-### Livebook
-
-There are livebooks available under the `livebooks` folder in this repo. Find out more about livebook [here](https://github.com/livebook-dev/livebook).
-
-For quick instruction at the root of the repo you can:
-
-```sh
-mix escript.install hex livebook
-
-# Start the Livebook server
-livebook server
+%BlogPost{
+  comments: [
+    %Comment{text: "This is a comment"},
+    %Comment{text: "This is another comment"}
+  ],
+  content: "This is a blog post",
+  draft: %DraftPost{content: "This is a draft blog post"},
+  post_datetime: ~N[2021-11-11 14:00:00]
+}
 ```
 
-If using asdf you should also `asdf reshim elixir`.
 
-The above will start the livebook where you can navigate to the livebooks repo and load any of the interactive docs from there.
+## to_struct/2
 
-### Contributing
+Accepts an data schema module and some source data and attempts to create the struct
+defined in the schema from the source data recursively.
 
-**NB** Set the `MIX_ENV` to `:docs` when publishing the package. This will ensure that modules inside `test/support` wont get their documentation published with the library (as they are included in the :dev env).
+We essentially visit each field in the schema and extract the data the field points to
+from the sauce data, passing it to the field's casting function before setting the
+result of that as the value on the struct.
 
-```sh
-MIX_ENV=docs mix hex.publish
-```
+This function takes a simple approach to creating the struct - whatever you return from
+a casting function will be set as the value of the struct field. You should raise if
+you want casting to fail.
 
-You will also have to set that env if you want to run `mix docs`
-
-```sh
-MIX_ENV=docs mix docs
-```
-
-## Installation
-
-[available in Hex](https://hex.pm/packages/data_schema), the package can be installed by adding `data_schema` to your list of dependencies in `mix.exs`:
+### Examples
 
 ```elixir
-def deps do
-  [
-    {:data_schema, "~> 0.2.8"}
-  ]
+data = %{"spice" => "enables space travel"}
+
+defmodule Foo do
+  require DataSchema
+
+  DataSchema.data_schema(field: {:a_rocket, "spice", &{:ok, &1}})
 end
+
+DataSchema.to_struct(data, Foo)
+# => Outputs the following:
+%Foo{a_rocket: "enables space travel"}
+```
+## to_struct/5
+
+Creates a struct or map from the provided arguments. This function can be used to define
+runtime schemas for the most dynamic of cases. This means you don't have to define a schema
+at compile time using the `DataShema.data_schema/1` macro.
+
+### Examples
+
+Creating a struct:
+
+```elixir
+defmodule Run do
+  defstruct [:time]
+end
+
+input = %{"time" => "10:00"}
+
+fields = [
+  field: {:time, "time", &{:ok, to_string(&1)}}
+]
+
+DataSchema.to_struct(input, Run, fields, DataSchema.MapAccessor)
+{:ok, %Run{time: "10:00"}}
+```
+Creating a map:
+
+```elixir
+input = %{"time" => "10:00"}
+
+fields = [
+  field: {:time, "time", &{:ok, to_string(&1)}}
+]
+
+DataSchema.to_struct(input, %{}, fields, DataSchema.MapAccessor)
+{:ok, %{time: "10:00"}}
+```
+## data_schema/1
+
+A macro that creates a data schema. By default all struct fields are required but you
+can specify that a field be optional by passing the correct option in. See the Options
+section below for more.
+
+### Field Types
+
+There are 5 kinds of struct fields we can have:
+
+1. `field`     - The value will be a casted value from the source data.
+2. `list_of`   - The value will be a list of casted values created from the source data.
+3. `has_one`   - The value will be created from a nested data schema (so will be a struct)
+4. `has_many`  - The value will be created by casting a list of values into a data schema.
+(You end up with a list of structs defined by the provided schema). Similar to has_many in ecto
+5. `aggregate` - The value will a casted value formed from multiple bits of data in the source.
+
+### Options
+
+Available options are:
+
+  - `:optional?` - specifies whether or not the field in the struct should be included in
+  the `@enforce_keys` for the struct. By default all fields are required but you can mark
+  them as optional by setting this to `true`. This will also be checked when creating a
+  struct with `DataSchema.to_struct/2` returning an error if the required field is null.
+
+For example:
+```elixir
+defmodule Sandwich do
+  require DataSchema
+
+  DataSchema.data_schema(field: {:type, "the_type", &{:ok, String.upcase(&1)}, optional?: true})
+end
+```
+### Examples
+
+See the guides for more in depth examples but below you can see how we create a schema
+that will take a map of data and create a struct out of it. Given the following schema:
+
+```elixir
+defmodule Sandwich do
+  require DataSchema
+
+  DataSchema.data_schema(
+    field: {:type, "the_type", &{:ok, String.upcase().(&1)}},
+    list_of: {:fillings, "the_fillings", &{:ok, String.downcase(&1["name"])}}
+  )
+end
+
+input_data = %{
+  "the_type" => "fake steak",
+  "the_fillings" => [
+    %{"name" => "fake stake", "good?" => true},
+    %{"name" => "SAUCE"},
+    %{"name" => "sweetcorn"}
+  ]
+}
+
+DataSchema.to_struct(input_data, Sandwich)
+# outputs the following:
+%Sandwich{
+  type: "FAKE STEAK",
+  fillings: ["fake stake", "sauce", "sweetcorn"]
+}
 ```

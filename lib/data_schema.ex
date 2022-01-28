@@ -1,92 +1,10 @@
 defmodule DataSchema do
-  @moduledoc """
-  DataSchemas are declarative specifications of how to create structs from some kind of
-  data source. For example you can define a schema that knows how to turn an elixir map
-  into a struct, casting all of the values as it goes. Alternatively you can set up a
-  schema to ingest XML data and create structs from the values inside the XML.
+  @moduledoc File.read!(Path.expand("./README.md"))
+             |> String.split("<!-- README START -->")
+             |> Enum.at(1)
+             |> String.split("<!-- README END -->")
+             |> List.first()
 
-  Below is an example of a simple schema:
-
-      defmodule Blog do
-        import DataSchema, only: [data_schema: 1]
-
-        data_schema([
-          field: {:name, "name", &{:ok, to_string(&1)}}
-        ])
-      end
-
-  This says we will create a struct with a `:name` key and will get the value for that key
-  from under the `"name"` key in the source data. That value will be passed to `to_string/1`
-  and the result of that function will end up as the value under `:name` in the resulting
-  struct.
-
-  In general this is the format for a field:
-
-      field {:content, "text", &cast_string/1}
-      #  ^         ^      ^              ^
-      # field type |      |              |
-      # struct key name   |              |
-      #    path to data in the source    |
-      #                           casting function
-
-  Depending on your input data type the path pointing to a value in it may need to be
-  interpreted differently. For our example of a map input type, the "path" is really just
-  a key on that input map. But there is still flexibility in how we use that key to access
-  the value; we could use `Map.get/2` or `Map.fetch/2` for example. Additionally, for
-  different input data types what the path looks like and what it means for how you access
-  data can be different. Let's say your input data type was XML your path could be ".//MyNode",
-  ie could be an xpath. In which case what you do with that xpath is going to be different
-  from what you would do with a map key.
-
-  DataSchema allows for different schemas to handle different input types AND allows for
-  the same input type to be handled differently in different schemas.
-
-  Finally when creating the struct we can choose to stop as soon as we find an error or to
-  simply put whatever is returned from a casting function into the struct we are making.
-  The latter approach encourages people to raise exceptions from their casting functions
-  to halt the creation of the struct.
-
-  ### Field Types
-
-  There are 5 kinds of struct fields we can have:
-
-  1. `field`     - The value will be a casted value from the source data.
-  2. `list_of`   - The value will be a list of casted values created from the source data.
-  3. `has_one`   - The value will be created from a nested data schema (so will be a struct)
-  4. `has_many`  - The value will be created by casting a list of values into a data schema.
-  (You end up with a list of structs defined by the provided schema). Similar to has_many in ecto
-  5. `aggregate` - The value will a casted value formed from multiple bits of data in the source.
-
-  ### Examples
-
-  See the guides for more in depth examples but below you can see how we create a schema
-  that will take a map of data and create a struct out of it. Given the following schema:
-
-      defmodule Sandwich do
-        require DataSchema
-
-        DataSchema.data_schema([
-          field: {:type, "the_type", &{:ok, String.upcase(&1)}},
-          list_of: {:fillings, "the_fillings", &({:ok, String.downcase(&1["name"])})}
-        ])
-      end
-
-      input_data = %{
-        "the_type" => "fake steak",
-        "the_fillings" => [
-          %{"name" => "fake stake", "good?" => true},
-          %{"name" => "SAUCE"},
-          %{"name" => "sweetcorn"},
-        ]
-      }
-
-      DataSchema.to_struct(input_data, Sandwich)
-      # outputs the following:
-      %Sandwich{
-        type: "FAKE STEAK",
-        fillings: ["fake stake", "sauce", "sweetcorn"],
-      }
-  """
   @available_types [:field, :has_one, :has_many, :aggregate, :list_of]
   @non_null_error_message "Field was marked as not null but was found to be null."
 
