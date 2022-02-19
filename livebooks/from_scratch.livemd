@@ -1,3 +1,5 @@
+<!-- vim: syntax=markdown -->
+
 # DataSchema From Scratch
 
 ## Prerequisites
