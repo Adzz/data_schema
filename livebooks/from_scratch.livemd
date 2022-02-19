@@ -1,0 +1,476 @@
+# DataSchema From Scratch
+
+## Prerequisites
+
+This livebook dives into how we chose to implement data schema, touching on some of the design
+decisions along the way.
+
+```elixir
+Mix.install([:data_schema, :decimal, :sweet_xml])
+```
+
+## DataSchemas From Scratch.
+
+In Link we make requests to external services that return data and we want to be able to turn
+the responses into something structured quickly and easily. A simple way to do that is to use
+a struct.
+
+A struct means later on in the system we can pattern match on the struct and know what kinds
+of fields we expect to be there, and we know which module is relevant to go to for docs etc.
+
+<!-- livebook:{"break_markdown":true} -->
+
+So let's take the following example
+
+```elixir
+response = """
+<Flight 
+  leaving="LHR"
+  arriving="JFK"
+  price="100.00"
+  departing_at="14:00:00"
+  currency="GBP"
+  duration="10hs"
+/>
+"""
+```
+
+We want to turn it into one of these:
+
+```elixir
+defmodule Money do
+  defstruct [:amount, :currency]
+end
+
+defmodule Order do
+  defstruct [:origin, :destination, :departing_at, :total_price]
+end
+```
+
+The struct that we want would look something like this:
+
+<!-- livebook:{"force_markdown":true} -->
+
+```elixir
+%Order{
+  origin: "LHR",
+  destination: "JFK",
+  departing_at: ~T[14:00:00],
+  total_price: %Money{amount: Decimal.new("100.00"), currency: "GBP"}
+}
+```
+
+<!-- livebook:{"break_markdown":true} -->
+
+You will notice that this transformation involves a few things. First we must traverse "in" to
+the input data to extract values from within it. Next we must transform those values somehow -
+sometimes combining multiple values from the input data together. Finally we must put those 
+values under a key of some kind in a struct.
+
+<!-- livebook:{"break_markdown":true} -->
+
+To implement this let's first create a description of the data we want from the input, this
+will just be a list of paths to the values we want. Because the input is XML we will use 
+xpaths to describe where to get the values
+
+```elixir
+[
+  "/Flight/@leaving",
+  "/Flight/@arriving",
+  "/Flight/@departing_at",
+  "/Flight/@price",
+  "/Flight/@currency"
+]
+```
+
+Next we want to be able to transform those values in some way, for example the time string
+should become a `Time` struct and we want to combine the money data into a money type.
+For now we are going to keep the money data separate and come back to what we can do to
+combine them later.
+
+Let's add a "casting" function for each value, the easiest way to do this is with a 
+tuple:
+
+```elixir
+[
+  {"/Flight/@leaving", fn leaving -> leaving end},
+  {"/Flight/@arriving", fn arriving -> arriving end},
+  {"/Flight/@departing_at", fn time -> Time.from_iso8601!(time) end},
+  {"/Flight/@price", fn price -> price end},
+  {"/Flight/@currency", fn currency -> currency end}
+]
+```
+
+This does the simplest thing for now and provides a function that will get the value at the
+end of the path which it gets the chance to do something with before putting it into the struct.
+
+Which leaves us with the last missing bit - we need to specify the keys we want each value
+to live under. Again for now we will just ignore that we need to combine currecny and price
+to make a `Money` struct.
+
+```elixir
+fields = [
+  {:origin, "/Flight/@leaving", fn leaving -> leaving end},
+  {:destination, "/Flight/@arriving", fn arriving -> arriving end},
+  {:departing_at, "/Flight/@departing_at", fn time -> Time.from_iso8601!(time) end},
+  {:price, "/Flight/@price", fn price -> price end},
+  {:currency, "/Flight/@currency", fn currency -> currency end}
+]
+```
+
+This has then given us a simple description of the data we want, how we can (optionally) transform
+that data, and the keys we want the transformed data to live under.
+
+But how do we do that transformation?
+
+<!-- livebook:{"break_markdown":true} -->
+
+Well the simplest way is a reduce. We just need one extra thing which is something that can
+interpret the Xpath for us. I will use `SweetXML` for this demo.
+
+```elixir
+import SweetXml, only: [sigil_x: 2]
+
+input = """
+<Flight 
+  leaving="LHR"
+  arriving="JFK"
+  price="100.00"
+  departing_at="14:00:00"
+  currency="GBP"
+  duration="10hs"
+/>
+"""
+
+Enum.reduce(fields, %{}, fn {key, path, cast_fn}, acc ->
+  input_data = SweetXml.xpath(input, ~x"#{path}"s)
+  Map.put(acc, key, cast_fn.(input_data))
+end)
+```
+
+Nice, this is close! We have transformed the time as desired but now we want to create the money
+correctly. To do that we should recognise that there are really a few kinds of things at play
+in the description of the fields we provided.
+
+There are some kinds of fields that are just "take the value transform and put it under a key"
+and there are some that are more nuanced. They may want to return a nested struct, or a list
+of them, or aggregate some data in some way.
+
+DatSchema currently defines 5 kinds of fields you can use.
+
+## DataSchema Field Types
+
+The 5 kinds of fields are:
+
+1. `field`     - The value will be a casted value from the source data.
+2. `list_of`   - The value will be a list of casted values created from the source data.
+3. `has_one`   - The value will be created from a nested data schema (so will be a struct)
+4. `has_many`  - The value will be created by casting a list of values into a data schema.
+   (You end up with a list of structs defined by the provided schema). Similar to has_many in ecto
+5. `aggregate` - The value will be a casted value formed from multiple bits of data in the source.
+
+## Using has_one
+
+Let's use `has_one` to create the money type we desire. This says "I will create a nested struct".
+To do that we can first define the fields needed to create a `Money`, then put them in the parent 
+schema.
+
+```elixir
+money_fields = [
+  field: {:amount, "./@price", fn price -> Decimal.new(price) end},
+  field: {:currency, "./@currency", fn currency -> currency end}
+]
+
+fields = [
+  field: {:origin, "/Flight/@leaving", fn leaving -> leaving end},
+  field: {:destination, "/Flight/@arriving", fn arriving -> arriving end},
+  field: {:departing_at, "/Flight/@departing_at", fn time -> Time.from_iso8601!(time) end},
+  has_one: {:total_price, "/Flight", {%Money{}, money_fields}}
+]
+```
+
+You will see our `total_price` has this at the end
+
+<!-- livebook:{"force_markdown":true} -->
+
+```elixir
+{%Money{}, money_fields}
+```
+
+This just says "take the money fields and create a `Money` struct from what it describes"
+
+Let's update our reduce function, we will put it into a module so we can use recursion.
+
+```elixir
+input = """
+<Flight 
+  leaving="LHR"
+  arriving="JFK"
+  price="100.00"
+  departing_at="14:00:00"
+  currency="GBP"
+  duration="10hs"
+/>
+"""
+
+defmodule Schema do
+  def to_struct(input, fields, accumulator) do
+    Enum.reduce(fields, accumulator, fn
+      {:field, {key, path, cast_fn}}, acc ->
+        input_data = SweetXml.xpath(input, ~x"#{path}"s)
+        Map.put(acc, key, cast_fn.(input_data))
+
+      {:has_one, {key, path, {nested_acc, nested_fields}}}, acc ->
+        input_data = SweetXml.xpath(input, ~x"#{path}")
+        value = to_struct(input_data, nested_fields, nested_acc)
+        Map.put(acc, key, value)
+    end)
+  end
+end
+
+Schema.to_struct(input, fields, %{})
+```
+
+## Using aggregate
+
+If we were to insted to use an `aggregate` field we could do so by changing our fields slightly:
+
+```elixir
+money_fields = [
+  field: {:amount, "/Flight/@price", fn price -> Decimal.new(price) end},
+  field: {:currency, "/Flight/@currency", fn currency -> currency end}
+]
+
+to_money = fn %{amount: amount, currency: currency} ->
+  %Money{amount: amount, currency: currency}
+end
+
+fields = [
+  field: {:origin, "/Flight/@leaving", fn leaving -> leaving end},
+  field: {:destination, "/Flight/@arriving", fn arriving -> arriving end},
+  field: {:departing_at, "/Flight/@departing_at", fn time -> Time.from_iso8601!(time) end},
+  aggregate: {:total_price, money_fields, to_money}
+]
+```
+
+Now we update the reduce a bit
+
+```elixir
+defmodule Schema do
+  def to_struct(input, fields, accumulator) do
+    Enum.reduce(fields, accumulator, fn
+      {:field, {key, path, cast_fn}}, acc ->
+        input_data = SweetXml.xpath(input, ~x"#{path}"s)
+        Map.put(acc, key, cast_fn.(input_data))
+
+      {:has_one, {key, path, {nested_acc, nested_fields}}}, acc ->
+        input_data = SweetXml.xpath(input, ~x"#{path}")
+        value = to_struct(input_data, nested_fields, nested_acc)
+        Map.put(acc, key, value)
+
+      {:aggregate, {key, nested_fields, cast_fn}}, acc ->
+        data_map = to_struct(input, nested_fields, %{})
+        Map.put(acc, key, cast_fn.(data_map))
+    end)
+  end
+end
+
+Schema.to_struct(input, fields, %{})
+```
+
+## Using Compiled Schemas
+
+What we have seen so far gives us a lot of flexibility in what exactly we create when we call
+to_struct. Our `fields` specify a key that we will put values under, but it does now care which 
+specific struct we create. To demo that we could do this:
+
+```elixir
+Schema.to_struct(input, fields, %Order{})
+```
+
+Or even
+
+```elixir
+defmodule Ticket do
+  defstruct [:origin, :destination, :departing_at, :total_price]
+end
+
+Schema.to_struct(input, fields, %Ticket{})
+```
+
+We also have the option to forgo that flexibility and create structs at the same time that we 
+our fields. We could define what we have already in the following way
+
+```elixir
+defmodule Money do
+  import DataSchema
+
+  data_schema(
+    field: {:amount, "./@price", fn price -> Decimal.new(price) end},
+    field: {:currency, "./@currency", fn currency -> currency end}
+  )
+end
+
+defmodule Order do
+  import DataSchema
+
+  data_schema(
+    field: {:origin, "/Flight/@leaving", fn leaving -> leaving end},
+    field: {:destination, "/Flight/@arriving", fn arriving -> arriving end},
+    field: {:departing_at, "/Flight/@departing_at", fn time -> Time.from_iso8601!(time) end},
+    has_one: {:total_price, "/Flight", Money}
+  )
+end
+```
+
+Behind the scenes what `data_schema` does is define a `defstruct` for us and create a 
+function called `__data_schema_fields/0` and puts the field descriptions in it. That
+means we can define a simpler `to_struct` function:
+
+```elixir
+defmodule Schema do
+  def to_struct(input, module) do
+    to_struct(input, module.__data_schema_fields(), struct(module, %{}))
+  end
+
+  def to_struct(input, fields, data_accessor, accumulator) do
+    Enum.reduce(fields, accumulator, fn
+      {:field, {key, path, cast_fn}}, acc ->
+        input_data = SweetXml.xpath(input, ~x"#{path}"s)
+        Map.put(acc, key, cast_fn.(input_data))
+
+      {:has_one, {key, path, {nested_acc, nested_fields}}}, acc ->
+        input_data = SweetXml.xpath(input, ~x"#{path}")
+        value = to_struct(input_data, nested_fields, nested_acc)
+        Map.put(acc, key, value)
+
+      {:has_one, {key, path, nested_module}}, acc ->
+        input_data = SweetXml.xpath(input, ~x"#{path}")
+        value = to_struct(input_data, nested_module)
+        Map.put(acc, key, value)
+
+      {:aggregate, {key, nested_fields, cast_fn}}, acc ->
+        data_map = to_struct(input, nested_fields, %{})
+        Map.put(acc, key, cast_fn.(data_map))
+    end)
+  end
+end
+
+Schema.to_struct(input, Order)
+```
+
+## Different Input data
+
+Finally, all of the demonstrations so far have used XML as the input data, but the schemas can
+handle any given data type. To think about how let's look at where we currently call the 
+`SweetXML` function and parameterize that instead:
+
+```elixir
+defmodule Schema do
+  def to_struct(input, module) do
+    accessor = module.__data_accessor()
+    fields = module.__data_schema_fields()
+    to_struct(input, fields, accessor, struct(module, %{}))
+  end
+
+  def to_struct(input, fields, data_accessor, accumulator) do
+    Enum.reduce(fields, accumulator, fn
+      {:field, {key, path, cast_fn}}, acc ->
+        input_data = data_accessor.field(input, path)
+        Map.put(acc, key, cast_fn.(input_data))
+
+      {:has_one, {key, path, {nested_acc, nested_fields}}}, acc ->
+        input_data = data_accessor.has_one(input, path)
+        value = to_struct(input_data, nested_fields, data_accessor, nested_acc)
+        Map.put(acc, key, value)
+
+      {:has_one, {key, path, nested_module}}, acc ->
+        input_data = data_accessor.has_one(input, path)
+        value = to_struct(input_data, nested_module)
+        Map.put(acc, key, value)
+
+      {:aggregate, {key, nested_fields, cast_fn}}, acc ->
+        data_map = to_struct(input, nested_fields, data_accessor, %{})
+        Map.put(acc, key, cast_fn.(data_map))
+    end)
+  end
+end
+
+defmodule XpathAccessor do
+  def has_one(input, path) do
+    SweetXml.xpath(input, ~x"#{path}")
+  end
+
+  def field(input, path) do
+    SweetXml.xpath(input, ~x"#{path}"s)
+  end
+end
+
+Schema.to_struct(input, fields, XpathAccessor, %{})
+```
+
+What you notice is that the function we just parameterized could be anything. That means our path
+can be anything as long as the data accessor knows how to use that path on the input data
+to extract some value.
+
+That means we can define different schemas and have them work on different input data, we can 
+specify a different accessor by using a module attribute on the schema.
+
+```elixir
+input = %{
+  "leaving" => "LHR",
+  "arriving" => "JFK",
+  "price" => "100.00",
+  "currency" => "GBP",
+  "departing_at" => "14:00:00"
+}
+
+defmodule AccessAccessor do
+  def has_one(input, []), do: input
+
+  def has_one(input, path) do
+    get_in(input, path)
+  end
+
+  def field(input, path) do
+    get_in(input, path)
+  end
+end
+
+defmodule Money do
+  import DataSchema
+
+  @data_accessor AccessAccessor
+  data_schema(
+    field: {:amount, ["price"], fn price -> Decimal.new(price) end},
+    field: {:currency, ["currency"], fn currency -> currency end}
+  )
+end
+
+defmodule Order do
+  import DataSchema
+
+  data_schema(
+    field: {:origin, "leaving", StringType},
+    field: {:destination, "arriving", fn arriving -> arriving end},
+    field: {:departing_at, "departing_at", fn time -> Time.from_iso8601!(time) end},
+    has_one: {:total_price, [], Money}
+  )
+end
+
+Schema.to_struct(input, Order)
+```
+
+## How Does This Make Us Quicker?
+
+My thesis is this leads to easier to read code. We can see what exactly we are extracting
+from the response and we can see what we do to it to make it structured data. We end up with 
+casting functions that can be re-used and across all integrations which can speed us up.
+
+The code also ends up very clear because it expresses what we are actually doing - ie taking
+data from the XML and turning it into a duffel concept.
+
+If the xml response changes we can edit the paths in the schemas pretty easily.
+
+Standardisation is a good thing for readability and quickly getting a good accurate mental
+model of what is happening in the codeebase which is essential for us.
