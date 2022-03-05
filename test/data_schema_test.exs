@@ -19,7 +19,7 @@ defmodule DataSchemaTest do
     import DataSchema, only: [data_schema: 1]
 
     @mapping [
-      field: {:date, "date", &Date.from_iso8601/1},
+      field: {:date, "date", {Date, :from_iso8601, []}},
       field: {:time, "time", &Time.from_iso8601/1}
     ]
     data_schema(
@@ -88,7 +88,7 @@ defmodule DataSchemaTest do
                aggregate:
                  {:post_datetime,
                   [
-                    field: {:date, "date", &Date.from_iso8601/1},
+                    field: {:date, "date", {Date, :from_iso8601, []}},
                     field: {:time, "time", &Time.from_iso8601/1}
                   ], &DataSchemaTest.BlogPost.to_datetime/1}
              ]

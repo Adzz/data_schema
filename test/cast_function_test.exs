@@ -1,7 +1,7 @@
 defmodule DataSchema.CastFunctionTest do
   use ExUnit.Case, async: true
 
-  describe "We raise a nice error when the cast function returns something it shoudln't" do
+  describe "We raise a nice error when the cast function returns something it shouldn't" do
     test "field" do
       input = %{"beats_per_min" => 10}
       fields = [field: {:bpm, "beats_per_min", & &1}]
