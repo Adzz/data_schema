@@ -1,4 +1,5 @@
 <!-- vim: syntax=markdown -->
+
 # Basic Concepts
 
 ## What Is A Data Schema?
@@ -91,8 +92,8 @@ defmodule BlogPost do
   import DataSchema, only: [data_schema: 1]
 
   @date_time_fields [
-    field: {:date, "date", &Date.from_iso8601/1},
-    field: {:time, "time", &Time.from_iso8601/1}
+    field: {:date, "date", {Date, :from_iso8601, []}},
+    field: {:time, "time", {Time, :from_iso8601, []}}
   ]
   data_schema(
     field: {:content, "content", &{:ok, to_string(&1)}},

@@ -808,6 +808,7 @@ defmodule DataSchema do
   end
 
   # This just lets us use either a module name for the data type OR a one arity fn.
+  defp call_cast_fn({module, fun, args}, value), do: apply(module, fun, [value | args])
   defp call_cast_fn(module, value) when is_atom(module), do: module.cast(value)
   defp call_cast_fn(fun, value) when is_function(fun, 1), do: fun.(value)
 end
