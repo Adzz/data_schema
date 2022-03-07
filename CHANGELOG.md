@@ -1,5 +1,11 @@
 # Changelog for version 0.2.x
 
+## 0.2.9
+
+### Improvement
+
+Allows for using a MFA tuple ({module, function, arguments}) as a casting function in a data schema. The value extracted from the input data will be set as the first argument in the arguments list.
+
 ## 0.2.8
 
 ### Improvement
