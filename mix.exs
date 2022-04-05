@@ -12,10 +12,19 @@ defmodule DataSchema.MixProject do
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       description: description(),
+      aliases: aliases(),
       source_url: @source_url,
       docs: docs(),
       deps: deps()
     ]
+  end
+
+  defp aliases() do
+    [docs: ["docs", &create_livebook/1]]
+  end
+
+  defp create_livebook(_) do
+    Mix.Task.run("create_livebook_from_module", ["DataSchema", "livebooks/readme"])
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
@@ -42,7 +51,7 @@ defmodule DataSchema.MixProject do
       {:sweet_xml, ">= 0.0.0", only: [:dev, :test]},
       # This will be used for benchmarking.
       {:ecto, ">= 0.0.0", only: [:dev, :test]},
-      {:livebook_helpers, "~> 0.0.1", only: :dev},
+      {:livebook_helpers, "~> 0.0.1", only: [:dev, :docs]},
       {:ex_doc, ">= 0.0.0", only: :docs, runtime: false}
     ]
   end

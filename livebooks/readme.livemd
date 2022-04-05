@@ -99,7 +99,7 @@ defmodule BlogPost do
   import DataSchema, only: [data_schema: 1]
 
   @date_time_fields [
-    field: {:date, "date", &Date.from_iso8601/1},
+    field: {:date, "date", {Date, :from_iso8601, []}},
     field: {:time, "time", &Time.from_iso8601/1}
   ]
   data_schema(
