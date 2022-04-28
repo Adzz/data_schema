@@ -326,7 +326,11 @@ defmodule DataSchemaTest do
 
       blog = DataSchema.to_struct(input, BlagPost)
 
-      assert blog == {:error, %DataSchema.Errors{errors: [post_datetime: :invalid_format]}}
+      assert blog ==
+               {:error,
+                %DataSchema.Errors{
+                  errors: [post_datetime: %DataSchema.Errors{errors: [date: :invalid_format]}]
+                }}
     end
 
     defmodule FieldError do
@@ -339,7 +343,7 @@ defmodule DataSchemaTest do
 
       blog = DataSchema.to_struct(input, FieldError)
 
-      assert blog == :error
+      assert blog == {:error, %DataSchema.Errors{errors: [thing: "There was an error!"]}}
     end
 
     defmodule Has do
@@ -396,7 +400,7 @@ defmodule DataSchemaTest do
     test "errors on :list_of" do
       input = %{"thing" => [%{}]}
       blog = DataSchema.to_struct(input, ListOfError)
-      assert blog == :error
+      assert blog == {:error, %DataSchema.Errors{errors: [thing: "There was an error!"]}}
     end
 
     defmodule Many do
