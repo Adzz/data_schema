@@ -566,7 +566,7 @@ defmodule DataSchema do
           {:ok, value} ->
             {:cont, update_struct(struct, field, value)}
 
-          {:error, message} = error ->
+          {:error, message} ->
             e = DataSchema.Errors.add_error(%DataSchema.Errors{}, {field, message})
             {:halt, {:error, e}}
 
