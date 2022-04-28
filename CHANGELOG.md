@@ -1,5 +1,11 @@
 # Changelog for version 0.2.x
 
+## 0.3.0
+
+### Improvement
+
+We now handle errors returned from cast functions by returning a `%DataSchema.Errors{}` for them, which will effectively point to the field that error'd. Previously we were only doing that for non null errors for some reason! to_struct now never returns `:error` only.
+
 ## 0.2.9
 
 ### Improvement
