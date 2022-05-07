@@ -23,10 +23,10 @@ defmodule DataSchema.SaxyStructHandlerTest do
     import DataSchema
     @data_accessor DataSchema.SaxyStructHandlerAccessor
     data_schema(
-      # field: {:price, ["ParentNode", "@price"], DataSchema.String, optional?: true},
-      # field: {:my_node, ["ParentNode", "MyNode", "text()"], DataSchema.String, optional?: true},
-      # has_one: {:another_node, ["ParentNode", "AnotherNode"], AnotherNode, optional?: true},
-      # has_many: {:problems, ["ParentNode", "Problems"], Problem, optional?: true},
+      field: {:price, ["ParentNode", "@price"], DataSchema.String, optional?: true},
+      field: {:my_node, ["ParentNode", "MyNode", "text()"], DataSchema.String, optional?: true},
+      has_one: {:another_node, ["ParentNode", "AnotherNode"], AnotherNode, optional?: true},
+      has_many: {:problems, ["ParentNode", "Problems"], Problem, optional?: true},
       list_of:
         {:problem_text, ["ParentNode", "Problems", "Problem", "text()"], &__MODULE__.upcase/1},
       list_of:
@@ -56,48 +56,20 @@ defmodule DataSchema.SaxyStructHandlerTest do
 
       {:ok, x} = DataSchema.Saxy.StructHandler.parse_string(xml)
 
-      # assert x == %DataSchema.XMLNode{
-      #          attributes: [%DataSchema.XMLAttr{name: "price", value: "1"}],
-      #          content: [
-      #            "\n  ",
-      #            %DataSchema.XMLNode{attributes: [], content: ["mynode"], name: "MyNode"},
-      #            "\n  ",
-      #            %DataSchema.XMLNode{
-      #              attributes: [],
-      #              content: [
-      #                "\n    ",
-      #                %DataSchema.XMLNode{attributes: [], content: ["Stuff"], name: "Child"},
-      #                "\n  "
-      #              ],
-      #              name: "AnotherNode"
-      #            },
-      #            "\n  ",
-      #            %DataSchema.XMLNode{
-      #              attributes: [],
-      #              content: [
-      #                "\n    ",
-      #                %DataSchema.XMLNode{
-      #                  attributes: [%DataSchema.XMLAttr{name: "attr", value: "1"}],
-      #                  content: ["Problem 1"],
-      #                  name: "Problem"
-      #                },
-      #                "\n    ",
-      #                %DataSchema.XMLNode{
-      #                  attributes: [%DataSchema.XMLAttr{name: "attr", value: "2"}],
-      #                  content: ["Problem 2"],
-      #                  name: "Problem"
-      #                },
-      #                "\n  "
-      #              ],
-      #              name: "Problems"
-      #            },
-      #            "\n"
-      #          ],
-      #          name: "ParentNode"
-      #        }
+      {:ok, struct} = DataSchema.to_struct(x, ParentNode)
 
-      DataSchema.to_struct(x, ParentNode)
-      |> IO.inspect(limit: :infinity, label: "")
+      assert struct == %DataSchema.SaxyStructHandlerTest.ParentNode{
+               another_node: %DataSchema.SaxyStructHandlerTest.AnotherNode{child: "Stuff"},
+               my_node: "mynode",
+               price: "1",
+               problem_attr: ["3", "2", "1"],
+               problem_text: ["PROBLEM 1", "PROBLEM 2", "PROBLEM 2"],
+               problems: [
+                 %DataSchema.SaxyStructHandlerTest.Problem{attr: "", inner_content: "Problem 1"},
+                 %DataSchema.SaxyStructHandlerTest.Problem{attr: "3", inner_content: "Problem 2"},
+                 %DataSchema.SaxyStructHandlerTest.Problem{attr: "1", inner_content: "Problem 2"}
+               ]
+             }
     end
   end
 end
