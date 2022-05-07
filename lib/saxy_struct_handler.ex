@@ -53,7 +53,6 @@ defmodule DataSchema.Saxy.StructHandler do
   end
 
   defp characters(characters, state) do
-    # characters |> IO.inspect(limit: :infinity, label: "")
     %{stack: [current | stack]} = state
     current = prepend_element_content(current, characters)
     %{state | stack: [current | stack]}
