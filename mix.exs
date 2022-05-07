@@ -52,7 +52,8 @@ defmodule DataSchema.MixProject do
       # This will be used for benchmarking.
       {:ecto, ">= 0.0.0", only: [:dev, :test]},
       {:livebook_helpers, "~> 0.0.1", only: [:dev, :docs]},
-      {:ex_doc, ">= 0.0.0", only: :docs, runtime: false}
+      {:ex_doc, ">= 0.0.0", only: :docs, runtime: false},
+      {:saxy, "~> 1.4"}
     ]
   end
 
