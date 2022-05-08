@@ -23,7 +23,12 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
 
   @impl true
   def field(data, path) do
-    get_field(path, data)
+    # These path validations should happen in the schema probably.
+    case List.last(path) do
+      "text()" -> get_field(path, data)
+      "@" <> _ -> get_field(path, data)
+      key -> raise "Invalid path; field path must end in text() or an @attr, got #{key}"
+    end
   end
 
   @impl true
@@ -46,7 +51,7 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
         raise "Invalid path; has_many must point to an XML node"
 
       false ->
-        case get_nested_node(path, data) do
+        case get_nested_nodes(path, data) do
           [] -> []
           [_ | _] = nodes -> remove_text(nodes)
           _ -> raise "Invalid path - has_many should point to a list of nodes."
@@ -122,10 +127,41 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
     end)
   end
 
+  # has_many
+
+  defp get_nested_nodes([node_name], [_ | _] = nodes) do
+    find_nodes(nodes, node_name)
+  end
+
+  defp get_nested_nodes([node_name | rest], [_ | _] = nodes) do
+    case find_node(nodes, node_name) do
+      :not_found -> nil
+      child -> get_nested_nodes(rest, Map.fetch!(child, :content))
+    end
+  end
+
+  defp get_nested_nodes([node_name | rest], %DataSchema.XMLNode{} = data) do
+    case node_content(node_name, data) do
+      nil -> nil
+      content -> get_nested_nodes(rest, content)
+    end
+  end
+
   # has_one
 
-  defp get_nested_node([], data) do
-    data
+  defp get_nested_node([node_name], %DataSchema.XMLNode{} = data) do
+    if Map.fetch!(data, :name) == node_name do
+      data
+    else
+      nil
+    end
+  end
+
+  defp get_nested_node([node_name], [_ | _] = nodes) do
+    case find_node(nodes, node_name) do
+      :not_found -> nil
+      child -> child
+    end
   end
 
   defp get_nested_node([node_name | rest], [_ | _] = nodes) do
@@ -136,12 +172,17 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
   end
 
   defp get_nested_node([node_name | rest], %DataSchema.XMLNode{} = data) do
-    get_nested_node(rest, node_content(node_name, data))
+    case node_content(node_name, data) do
+      nil -> nil
+      content -> get_nested_node(rest, content)
+    end
   end
 
   defp get_field([node_name, "text()"], [_ | _] = child_nodes) do
-    child = find_node(child_nodes, node_name)
-    get_field([node_name, "text()"], child)
+    case find_node(child_nodes, node_name) do
+      :not_found -> nil
+      child -> get_field([node_name, "text()"], child)
+    end
   end
 
   defp get_field([node_name, "text()"], %DataSchema.XMLNode{} = data) do
@@ -159,16 +200,55 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
     end
   end
 
-  defp get_field(["text()" | _rest], _) do
-    raise "Invalid path, text() must appear at the end"
+  # There can be a single "attr" if the schema is a has_one.
+  defp get_field(["@" <> attr_name], %DataSchema.XMLNode{} = data) do
+    attrs = Map.fetch!(data, :attributes)
+
+    case attr(attrs, attr_name) do
+      nil -> nil
+      attr -> Map.fetch!(attr, :value)
+    end
   end
 
-  defp get_field(["@" <> attr], [_ | _]) do
+  # There can be a single "text" if the schema is a has_one.
+  defp get_field(["text()"], %DataSchema.XMLNode{} = data) do
+    case Map.fetch!(data, :content) do
+      [text] when is_binary(text) ->
+        text
+
+      [_ | _] = children ->
+        text = extract_text(children)
+        Enum.join(text)
+    end
+  end
+
+  defp get_field(["@" <> attr], [_ | _] = d) do
     raise "Invalid path; attempting to get attr #{attr} from a list of nodes"
   end
 
-  defp get_field(["@" <> _attr | _rest], _) do
-    raise "Invalid path; attribute must appear at the end of a path"
+  defp get_field(["text()"], [_ | _]) do
+    raise "Invalid path; attempting to get text from a list of nodes. Specify one or use list_of"
+  end
+
+  defp get_field([node_name, "@" <> attr_name], [_ | _] = child_nodes) do
+    case find_node(child_nodes, node_name) do
+      :not_found ->
+        nil
+
+      child ->
+        attrs = Map.fetch!(child, :attributes)
+
+        case attrs do
+          [] ->
+            nil
+
+          [_ | _] = attrs ->
+            case attr(attrs, attr_name) do
+              nil -> nil
+              attr -> Map.fetch!(attr, :value)
+            end
+        end
+    end
   end
 
   defp get_field([node_name, "@" <> attr_name], %DataSchema.XMLNode{} = data) do
@@ -180,8 +260,10 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
           nil
 
         [_ | _] = attrs ->
-          attr = attr(attrs, attr_name)
-          Map.fetch!(attr, :value)
+          case attr(attrs, attr_name) do
+            nil -> nil
+            attr -> Map.fetch!(attr, :value)
+          end
       end
     else
       nil
@@ -196,7 +278,10 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
   end
 
   defp get_field([node_name | rest], %DataSchema.XMLNode{} = data) do
-    get_field(rest, node_content(node_name, data))
+    case node_content(node_name, data) do
+      nil -> nil
+      content -> get_field(rest, content)
+    end
   end
 
   # This path validation would actually be better to do at compile time, when we create

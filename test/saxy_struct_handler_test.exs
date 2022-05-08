@@ -1,9 +1,6 @@
 defmodule DataSchema.SaxyStructHandlerTest do
   use ExUnit.Case, async: true
 
-  # TODO path validations - field must end in @attr or text()
-  # has_many, has_one can't end in @attr or text()
-
   defmodule AnotherNode do
     import DataSchema
     @data_accessor DataSchema.SaxyStructHandlerAccessor
