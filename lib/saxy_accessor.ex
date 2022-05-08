@@ -66,7 +66,7 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
     nodes
     |> find_nodes(node_name)
     |> Enum.reduce([], fn child, acc ->
-      get_list(rest, Map.fetch!(child, :content), acc)
+      get_list(rest, child.content, acc)
     end)
     |> :lists.reverse()
   end
@@ -81,7 +81,7 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
         [text | acc]
 
       %DataSchema.XMLNode{} = data, acc ->
-        case Map.fetch!(data, :content) do
+        case data.content do
           [text] when is_binary(text) ->
             [text | acc]
 
@@ -99,12 +99,11 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
         acc
 
       %DataSchema.XMLNode{} = data, acc ->
-        if Map.fetch!(data, :name) == node_name do
-          data
-          |> Map.fetch!(:attributes)
+        if data.name == node_name do
+          data.attributes
           |> Enum.reduce(acc, fn attr, acc ->
-            if Map.fetch!(attr, :name) == attr_name do
-              [Map.fetch!(attr, :value) | acc]
+            if attr.name == attr_name do
+              [attr.value | acc]
             else
               acc
             end
@@ -123,7 +122,7 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
     nodes
     |> find_nodes(node_name)
     |> Enum.reduce(acc, fn child, acc ->
-      get_list(rest, Map.fetch!(child, :content), acc)
+      get_list(rest, child.content, acc)
     end)
   end
 
@@ -136,7 +135,7 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
   defp get_nested_nodes([node_name | rest], [_ | _] = nodes) do
     case find_node(nodes, node_name) do
       :not_found -> nil
-      child -> get_nested_nodes(rest, Map.fetch!(child, :content))
+      child -> get_nested_nodes(rest, child.content)
     end
   end
 
@@ -150,7 +149,7 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
   # has_one
 
   defp get_nested_node([node_name], %DataSchema.XMLNode{} = data) do
-    if Map.fetch!(data, :name) == node_name do
+    if data.name == node_name do
       data
     else
       nil
@@ -167,7 +166,7 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
   defp get_nested_node([node_name | rest], [_ | _] = nodes) do
     case find_node(nodes, node_name) do
       :not_found -> nil
-      child -> get_nested_node(rest, Map.fetch!(child, :content))
+      child -> get_nested_node(rest, child.content)
     end
   end
 
@@ -186,8 +185,8 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
   end
 
   defp get_field([node_name, "text()"], %DataSchema.XMLNode{} = data) do
-    if Map.fetch!(data, :name) == node_name do
-      case Map.fetch!(data, :content) do
+    if data.name == node_name do
+      case data.content do
         [text] when is_binary(text) ->
           text
 
@@ -202,17 +201,17 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
 
   # There can be a single "attr" if the schema is a has_one.
   defp get_field(["@" <> attr_name], %DataSchema.XMLNode{} = data) do
-    attrs = Map.fetch!(data, :attributes)
+    attrs = data.attributes
 
     case attr(attrs, attr_name) do
       nil -> nil
-      attr -> Map.fetch!(attr, :value)
+      attr -> attr.value
     end
   end
 
   # There can be a single "text" if the schema is a has_one.
   defp get_field(["text()"], %DataSchema.XMLNode{} = data) do
-    case Map.fetch!(data, :content) do
+    case data.content do
       [text] when is_binary(text) ->
         text
 
@@ -236,7 +235,7 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
         nil
 
       child ->
-        attrs = Map.fetch!(child, :attributes)
+        attrs = child.attributes
 
         case attrs do
           [] ->
@@ -245,15 +244,15 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
           [_ | _] = attrs ->
             case attr(attrs, attr_name) do
               nil -> nil
-              attr -> Map.fetch!(attr, :value)
+              attr -> attr.value
             end
         end
     end
   end
 
   defp get_field([node_name, "@" <> attr_name], %DataSchema.XMLNode{} = data) do
-    if Map.fetch!(data, :name) == node_name do
-      attrs = Map.fetch!(data, :attributes)
+    if data.name == node_name do
+      attrs = data.attributes
 
       case attrs do
         [] ->
@@ -262,7 +261,7 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
         [_ | _] = attrs ->
           case attr(attrs, attr_name) do
             nil -> nil
-            attr -> Map.fetch!(attr, :value)
+            attr -> attr.value
           end
       end
     else
@@ -273,7 +272,7 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
   defp get_field([node_name | rest], [_ | _] = child_nodes) do
     case find_node(child_nodes, node_name) do
       :not_found -> nil
-      child -> get_field(rest, Map.fetch!(child, :content))
+      child -> get_field(rest, child.content)
     end
   end
 
@@ -312,32 +311,32 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
   end
 
   defp attr(attrs, attr_name) do
-    Enum.find(attrs, fn attr -> Map.fetch!(attr, :name) == attr_name end)
+    Enum.find(attrs, fn attr -> attr.name == attr_name end)
   end
 
   defp attrs(attrs, attr_name) do
-    Enum.filter(attrs, fn attr -> Map.fetch!(attr, :name) == attr_name end)
+    Enum.filter(attrs, fn attr -> attr.name == attr_name end)
   end
 
   defp find_nodes(nodes, node_name) do
     Enum.filter(nodes, fn
-      %DataSchema.XMLNode{} = child -> Map.fetch!(child, :name) == node_name
+      %DataSchema.XMLNode{} = child -> child.name == node_name
       _text -> false
     end)
   end
 
   defp find_node(nodes, node_name) do
     Enum.find(nodes, :not_found, fn
-      %DataSchema.XMLNode{} = child -> Map.fetch!(child, :name) == node_name
+      %DataSchema.XMLNode{} = child -> child.name == node_name
       _text -> false
     end)
   end
 
   defp node_content(node_name, data) do
-    case Map.fetch!(data, :name) == node_name do
+    case data.name == node_name do
       # If we ever have a node in our path that isn't in data we stop and return nil.
       false -> nil
-      true -> Map.fetch!(data, :content)
+      true -> data.content
     end
   end
 end
