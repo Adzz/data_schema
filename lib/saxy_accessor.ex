@@ -54,6 +54,7 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
         case get_nested_nodes(path, data) do
           [] -> []
           [_ | _] = nodes -> remove_text(nodes)
+          nil -> nil
           _ -> raise "Invalid path - has_many should point to a list of nodes."
         end
     end
