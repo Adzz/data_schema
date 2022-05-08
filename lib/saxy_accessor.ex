@@ -221,7 +221,7 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
     end
   end
 
-  defp get_field(["@" <> attr], [_ | _] = d) do
+  defp get_field(["@" <> attr], [_ | _]) do
     raise "Invalid path; attempting to get attr #{attr} from a list of nodes"
   end
 
@@ -314,9 +314,9 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
     Enum.find(attrs, fn attr -> attr.name == attr_name end)
   end
 
-  defp attrs(attrs, attr_name) do
-    Enum.filter(attrs, fn attr -> attr.name == attr_name end)
-  end
+  # defp attrs(attrs, attr_name) do
+  #   Enum.filter(attrs, fn attr -> attr.name == attr_name end)
+  # end
 
   defp find_nodes(nodes, node_name) do
     Enum.filter(nodes, fn

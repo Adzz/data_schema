@@ -4,7 +4,9 @@ defmodule DataSchema.SaxyStructHandlerTest do
   defmodule AnotherNode do
     import DataSchema
     @data_accessor DataSchema.SaxyStructHandlerAccessor
-    data_schema(field: {:child, ["Child", "text()"], DataSchema.String, optional?: true})
+    data_schema(
+      field: {:child, ["AnotherNode", "Child", "text()"], DataSchema.String, optional?: true}
+    )
   end
 
   defmodule Problem do
@@ -23,7 +25,7 @@ defmodule DataSchema.SaxyStructHandlerTest do
       field: {:price, ["ParentNode", "@price"], DataSchema.String, optional?: true},
       field: {:my_node, ["ParentNode", "MyNode", "text()"], DataSchema.String, optional?: true},
       has_one: {:another_node, ["ParentNode", "AnotherNode"], AnotherNode, optional?: true},
-      has_many: {:problems, ["ParentNode", "Problems"], Problem, optional?: true},
+      has_many: {:problems, ["ParentNode", "Problems", "Problem"], Problem, optional?: true},
       list_of:
         {:problem_text, ["ParentNode", "Problems", "Problem", "text()"], &__MODULE__.upcase/1},
       list_of:
