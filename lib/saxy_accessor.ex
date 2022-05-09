@@ -62,7 +62,6 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
 
   # list_of
 
-  # Instead of finding the first we need to find _all_ nodes
   defp get_list([node_name | rest], [_ | _] = nodes) do
     nodes
     |> find_nodes(node_name)
@@ -74,6 +73,16 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
 
   defp get_list([node_name | rest], %DataSchema.XMLNode{} = data) do
     get_list(rest, node_content(node_name, data))
+  end
+
+  # list acc
+
+  defp get_list([], [_ | _] = nodes, []) do
+    nodes
+  end
+
+  defp get_list([], [_ | _] = nodes, acc) do
+    nodes ++ acc
   end
 
   defp get_list(["text()"], [_ | _] = nodes, acc) do
@@ -129,6 +138,11 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
 
   # has_many
 
+  # If data is empty and we have more places to go then it isn't there.
+  defp get_nested_nodes([_node_name | _], []) do
+    nil
+  end
+
   defp get_nested_nodes([node_name], [_ | _] = nodes) do
     find_nodes(nodes, node_name)
   end
@@ -176,6 +190,10 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
       nil -> nil
       content -> get_nested_node(rest, content)
     end
+  end
+
+  defp get_field([_ | _], []) do
+    nil
   end
 
   defp get_field([node_name, "text()"], [_ | _] = child_nodes) do
@@ -315,6 +333,8 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
     Enum.find(attrs, fn attr -> attr.name == attr_name end)
   end
 
+  # Surely we'll need this for when / if there are multiple attrs. Need to
+  # wrtie some actual fucking tests. smh
   # defp attrs(attrs, attr_name) do
   #   Enum.filter(attrs, fn attr -> attr.name == attr_name end)
   # end
