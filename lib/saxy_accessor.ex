@@ -84,10 +84,6 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
     remove_text(nodes)
   end
 
-  defp get_list([], [_ | _] = nodes, [_ | _] = acc) do
-    remove_text(nodes) ++ acc
-  end
-
   defp get_list(["text()"], [_ | _] = nodes, acc) do
     Enum.reduce(nodes, acc, fn
       text, acc when is_binary(text) ->
@@ -100,7 +96,6 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
 
           [_ | _] = children ->
             text = extract_text(children)
-
             [Enum.join(text) | acc]
         end
     end)
@@ -130,7 +125,7 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
   defp get_list([node_name | rest], %DataSchema.XMLNode{} = nodes, acc) do
     case node_content(node_name, nodes) do
       nil -> nil
-      content -> get_list(rest, content, acc)
+      [_|_] = content -> get_list(rest, content, acc)
     end
   end
 
@@ -138,7 +133,10 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
     nodes
     |> find_nodes(node_name)
     |> Enum.reduce(acc, fn child, acc ->
-      get_list(rest, child.content, acc)
+      content = child.content
+      case content do
+        [_|_] -> get_list(rest, content, acc)
+      end
     end)
   end
 
