@@ -138,7 +138,7 @@ defmodule MaxWeight do
   )
 end
 
-defmodule WeightAllowances do
+defmodule WeightAllowance do
   import DataSchema
   @data_accessor DataSchema.SaxyStructHandlerAccessor
   data_schema(

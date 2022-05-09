@@ -10,6 +10,14 @@ defmodule DataSchema do
   @non_null_error_message "Field was marked as not null but was found to be null."
   @default_error_message "There was an error!"
 
+
+  # @large_xml File.read!(Path.expand("really_large_xml_fixture.xml"))
+  # @x DataSchema.Saxy.StructHandler.parse_string(@large_xml)
+  # def cprof_thing() do
+  #   {:ok, x} = @x
+  #   DataSchema.to_struct(x, AirShop)
+  # end
+
   @doc """
   A macro that creates a data schema. By default all struct fields are required but you
   can specify that a field be optional by passing the correct option in. See the Options
