@@ -53,7 +53,9 @@ defmodule DataSchema.MixProject do
       {:ecto, ">= 0.0.0", only: [:dev, :test]},
       {:livebook_helpers, "~> 0.0.1", only: [:dev, :docs]},
       {:ex_doc, ">= 0.0.0", only: :docs, runtime: false},
-      {:saxy, "~> 1.4"}
+      {:saxy, "~> 1.4"},
+      {:benchee, ">=0.0.0"},
+      {:decimal, ">=0.0.0"}
     ]
   end
 

@@ -72,17 +72,20 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
   end
 
   defp get_list([node_name | rest], %DataSchema.XMLNode{} = data) do
-    get_list(rest, node_content(node_name, data))
+    case node_content(node_name, data) do
+      nil -> nil
+      content -> get_list(rest, content)
+    end
   end
 
   # list acc
 
   defp get_list([], [_ | _] = nodes, []) do
-    nodes
+    remove_text(nodes)
   end
 
-  defp get_list([], [_ | _] = nodes, acc) do
-    nodes ++ acc
+  defp get_list([], [_ | _] = nodes, [_ | _] = acc) do
+    remove_text(nodes) ++ acc
   end
 
   defp get_list(["text()"], [_ | _] = nodes, acc) do
@@ -125,7 +128,10 @@ defmodule DataSchema.SaxyStructHandlerAccessor do
   end
 
   defp get_list([node_name | rest], %DataSchema.XMLNode{} = nodes, acc) do
-    get_list(rest, node_content(node_name, nodes), acc)
+    case node_content(node_name, nodes) do
+      nil -> nil
+      content -> get_list(rest, content, acc)
+    end
   end
 
   defp get_list([node_name | rest], [_ | _] = nodes, acc) do
