@@ -1,5 +1,9 @@
 # DataSchema
 
+[![Module Version](https://img.shields.io/hexpm/v/data_schema.svg)](https://hex.pm/packages/data_schema)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/data_schema/)
+[![Total Download](https://img.shields.io/hexpm/dt/data_schema.svg)](https://hex.pm/packages/data_schema)
+
 <!-- README START -->
 Data schemas are declarative descriptions of how to create a struct from some input data. You can set up different schemas to handle different kinds of input data. By default we assume the incoming data is a map, but you can configure schemas to work with any arbitrary data input including XML and json.
 
