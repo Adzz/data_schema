@@ -13,7 +13,7 @@ Mix.install([:data_schema, :decimal, :sweet_xml])
 
 ## DataSchemas From Scratch.
 
-In Link we make requests to external services that return data and we want to be able to turn
+In Duffel we make requests to external services that return data and we want to be able to turn
 the responses into something structured quickly and easily. A simple way to do that is to use
 a struct.
 
@@ -335,7 +335,7 @@ defmodule Schema do
     to_struct(input, module.__data_schema_fields(), struct(module, %{}))
   end
 
-  def to_struct(input, fields, data_accessor, accumulator) do
+  def to_struct(input, fields, accumulator) do
     Enum.reduce(fields, accumulator, fn
       {:field, {key, path, cast_fn}}, acc ->
         input_data = SweetXml.xpath(input, ~x"#{path}"s)
@@ -439,6 +439,18 @@ defmodule AccessAccessor do
   end
 end
 
+defmodule MapAccessor do
+  def has_one(input, ""), do: input
+
+  def has_one(input, path) do
+    Map.get(input, path)
+  end
+
+  def field(input, path) do
+    Map.get(input, path)
+  end
+end
+
 defmodule Money do
   import DataSchema
 
@@ -452,27 +464,14 @@ end
 defmodule Order do
   import DataSchema
 
+  @data_accessor MapAccessor
   data_schema(
-    field: {:origin, "leaving", StringType},
+    field: {:origin, "leaving", fn x -> {:ok, to_string(x)} end},
     field: {:destination, "arriving", fn arriving -> arriving end},
     field: {:departing_at, "departing_at", fn time -> Time.from_iso8601!(time) end},
-    has_one: {:total_price, [], Money}
+    has_one: {:total_price, "", Money}
   )
 end
 
 Schema.to_struct(input, Order)
 ```
-
-## How Does This Make Us Quicker?
-
-My thesis is this leads to easier to read code. We can see what exactly we are extracting
-from the response and we can see what we do to it to make it structured data. We end up with 
-casting functions that can be re-used and across all integrations which can speed us up.
-
-The code also ends up very clear because it expresses what we are actually doing - ie taking
-data from the XML and turning it into a duffel concept.
-
-If the xml response changes we can edit the paths in the schemas pretty easily.
-
-Standardisation is a good thing for readability and quickly getting a good accurate mental
-model of what is happening in the codeebase which is essential for us.
