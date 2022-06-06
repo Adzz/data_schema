@@ -69,7 +69,7 @@ defmodule DraftPost do
   import DataSchema, only: [data_schema: 1]
 
   @data_accessor XpathAccessor
-  data_schema(field: {:content, "./Content/text()", &{:ok, to_string(&1)}})
+  data_schema(field: {:content, "./Content/text()", fn _ -> {:error, "NOPE!"} end})
 end
 
 defmodule Comment do
