@@ -37,7 +37,12 @@ defmodule DataSchema.XML.Saxy do
       :not_found ->
         {:ok, %{state | stack: [{:skip, tag_name} | stack]}}
 
-      _ ->
+      sub_schema ->
+        attributes =
+          Enum.filter(attributes, fn {attr, value} ->
+            Map.get(sub_schema, {:attr, attr}, false)
+          end)
+
         tag = {tag_name, attributes, []}
         {:ok, %{state | stack: [tag | stack]}}
     end
@@ -92,9 +97,16 @@ defmodule DataSchema.XML.Saxy do
   end
 
   def parse_string(data, schema) do
+    # TODO: once it all works make this a tuple instead of a map for perf.
+    # benchmark both approaches.
     state = %{schema: schema, stack: []}
 
     case Saxy.parse_string(data, __MODULE__, state, []) do
+      # If we are returned an empty stack that means nothing in the XML was in the schema.
+      # If we found even one thing we would be returned a simple form node.
+      {:ok, %{stack: []}} ->
+        {:error, :not_found}
+
       {:ok, struct} ->
         {:ok, struct}
 

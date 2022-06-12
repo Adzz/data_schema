@@ -59,5 +59,30 @@ defmodule DataSchema.XML.SaxyTest do
       assert {:ok, form} = DataSchema.XML.Saxy.parse_string(xml, schema)
       assert form == {"A", [{"attr", "1"}], ["\n  ", "\n  text\n"]}
     end
+
+    test "we only keep the attrs mentioned in the schema" do
+      schema = %{
+        "A" => %{
+          :text => true,
+          {:attr, "attr"} => true
+        }
+      }
+
+      xml = "<A attr=\"1\" ignored=\"not here\">text</A>"
+      assert {:ok, form} = DataSchema.XML.Saxy.parse_string(xml, schema)
+      assert form == {"A", [{"attr", "1"}], ["text"]}
+    end
+
+    test "when we skip everything we return an error" do
+      schema = %{
+        "C" => %{
+          :text => true,
+          {:attr, "attr"} => true
+        }
+      }
+
+      xml = "<A attr=\"1\">text</A>"
+      assert {:error, :not_found} = DataSchema.XML.Saxy.parse_string(xml, schema)
+    end
   end
 end
