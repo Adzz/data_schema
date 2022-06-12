@@ -49,6 +49,7 @@ defmodule DataSchema.MixProject do
     [
       # This is added just so we can test the idea of an XML schema.
       {:sweet_xml, ">= 0.0.0", only: [:dev, :test]},
+      {:benchee, ">= 0.0.0", only: [:dev, :test]},
       # This will be used for benchmarking.
       {:ecto, ">= 0.0.0", only: [:dev, :test]},
       {:livebook_helpers, "~> 0.0.1", only: [:dev, :docs]},
