@@ -16,14 +16,9 @@ defmodule DataSchema.XML.Saxy do
   # If there is a duplicate tag name inside a tag we are skipping we need to be sure we
   # don't stop skipping when that duplicate tag closes. But we don't really want to keep
   # a stack of all elements that we skip as that defeats the point of skipping. So instead
-  # if we open a tag that has the same name as the parent "skipped" tag, we duplicate it
-  # so that when we close it and pop the skip off the tag it still all works.
-  # A different (better?) way would be to keep a count of the number of duplicates. That
-  # would presumably be a smaller memory footprint as an integer would be smaller than a
-  # tuple I guess. This is the edgiest of edge cases though - would we expect to see
-  # lots of duplicate names? Certainly in HTML I guess...
-  # The tradeoff a bigger tuple all the time for a smaller mem footprint some of the time
-  # so the tradeoff is what you expet more of - duplicate nested ignored tags, or not that.
+  # for now we have opted to keep a count of how many times we have opened this tag we are
+  # skipping, and we stop skipping when we have closed them all.
+  # An alternative would be to add a {:skipped  tuple for every nested duplicate tag.
   def handle_event(
         :start_element,
         {tag_name, _},
