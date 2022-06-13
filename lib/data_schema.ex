@@ -11,6 +11,38 @@ defmodule DataSchema do
   @default_error_message "There was an error!"
 
   @doc """
+  Accepts a the module of a compile time schema and will expand it into a runtime schema
+  recursively.
+  """
+  def to_runtime_schema(schema) do
+    if Code.ensure_loaded?(schema) && !function_exported?(schema, :__data_schema_fields, 0) do
+      raise "Provided schema is not a valid DataSchema: #{inspect(schema)}"
+    end
+
+    Enum.reduce(schema.__data_schema_fields(), [], fn
+      {:has_one, {key, path, child_module}}, acc ->
+        child_schema = to_runtime_schema(child_module)
+        [{:has_one, {key, path, {child_module, child_schema}}} | acc]
+
+      {:has_one, {key, path, child_module, opts}}, acc ->
+        child_schema = to_runtime_schema(child_module)
+        [{:has_one, {key, path, {child_module, child_schema}, opts}} | acc]
+
+      {:has_many, {key, path, child_module}}, acc ->
+        child_schema = to_runtime_schema(child_module)
+        [{:has_many, {key, path, {child_module, child_schema}}} | acc]
+
+      {:has_many, {key, path, child_module, opts}}, acc ->
+        child_schema = to_runtime_schema(child_module)
+        [{:has_many, {key, path, {child_module, child_schema}, opts}} | acc]
+
+      field, acc ->
+        [field | acc]
+    end)
+    |> :lists.reverse()
+  end
+
+  @doc """
   A macro that creates a data schema. By default all struct fields are required but you
   can specify that a field be optional by passing the correct option in. See the Options
   section below for more.
