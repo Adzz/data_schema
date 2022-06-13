@@ -270,43 +270,145 @@ defmodule DataSchema.XML.SaxyTest do
 
   describe "handle_event - XML children" do
     test "we can ignore text but include children" do
+      schema = %{
+        "A" => %{
+          "B" => %{
+            "D" => %{
+              "G" => %{:text => true},
+              {:attr, "dAttr"} => true
+            }
+          },
+          "C" => %{
+            "E" => %{
+              "F" => %{:text => true},
+              {:attr, "eAttr"} => true
+            }
+          }
+        }
+      }
+
+      xml = """
+      <A attr=\"1\">
+        <B>
+          b start text
+          <D dAttr=\"77\">
+            d start
+            <G>g wizz</G>
+            d end
+          </D>
+          b end text
+        </B>
+        text
+        <C>
+          c start
+          <E eAttr=\"88\">
+            e start
+            <F>f-un</F>
+            e end
+          </E>
+          c end
+        </C>
+      </A>
+      """
+
+      assert {:ok, form} = DataSchema.XML.Saxy.parse_string(xml, schema)
+
+      assert form ==
+               {"A", [],
+                [
+                  {"B", [], [{"D", [{"dAttr", "77"}], [{"G", [], ["g wizz"]}]}]},
+                  {"C", [], [{"E", [{"eAttr", "88"}], [{"F", [], ["f-un"]}]}]}
+                ]}
     end
 
     test "children's text" do
+      schema = %{"A" => %{"B" => %{:text => true}}}
+
+      xml = """
+      <A attr=\"1\">
+        <B>
+          b start
+          <D dAttr=\"77\">
+            <G>g wizz</G>
+          </D>
+          b end
+        </B>
+      </A>
+      """
+
+      assert {:ok, form} = DataSchema.XML.Saxy.parse_string(xml, schema)
+      assert form == {"A", [], [{"B", [], ["\n    b start\n    ", "\n    b end\n  "]}]}
     end
 
     test "children's attr" do
-    end
+      schema = %{"A" => %{"B" => %{{:attr, "attr"} => true}}}
 
-    test "ignoring child attrs" do
-    end
+      xml = """
+      <A attr=\"1\">
+        <B attr=\"b attr best\">
+          b start
+          <D dAttr=\"77\">
+            <G>g wizz</G>
+          </D>
+          b end
+        </B>
+      </A>
+      """
 
-    test "ignoring child text" do
-    end
-
-    test "grandchildren" do
-    end
-
-    test "grandchild text and attrs" do
-    end
-
-    test "child's sibling" do
-    end
-
-    test "grandchild's siblings" do
-    end
-
-    test "child and grandchild siblings (siblings all the way down)" do
+      assert {:ok, form} = DataSchema.XML.Saxy.parse_string(xml, schema)
+      assert form == {"A", [], [{"B", [{"attr", "b attr best"}], []}]}
     end
   end
 
   # This raises the interesting question of whether we should enforce the "present" stuff
   # here or not...
   describe "fields in the schema that aren't in the XML" do
-    test "when there are siblings that aren't in the XML" do
+    test "when there are siblings that aren't in the XML it still works" do
+      schema = %{
+        "A" => %{
+          "B" => %{{:attr, "attr"} => true},
+          "C" => %{{:attr, "attr"} => true}
+        }
+      }
+
+      xml = """
+      <A attr=\"1\">
+        <B attr=\"b attr best\">
+          b start
+          <D dAttr=\"77\">
+            <G>g wizz</G>
+          </D>
+          b end
+        </B>
+      </A>
+      """
+
+      assert {:ok, form} = DataSchema.XML.Saxy.parse_string(xml, schema)
+      assert form == {"A", [], [{"B", [{"attr", "b attr best"}], []}]}
     end
 
     test "when there are children that don't feature" do
+      schema = %{
+        "A" => %{
+          "B" => %{"Z" => %{:text => true}, {:attr, "attr"} => true},
+          "C" => %{"Z" => %{:text => true}, {:attr, "attr"} => true}
+        }
+      }
+
+      xml = """
+      <A attr=\"1\">
+        <B attr=\"b attr best\">
+          b start
+          <D dAttr=\"77\">
+            <G>g wizz</G>
+          </D>
+          b end
+        </B>
+      </A>
+      """
+
+      assert {:ok, form} = DataSchema.XML.Saxy.parse_string(xml, schema)
+      assert form == {"A", [], [{"B", [{"attr", "b attr best"}], []}]}
     end
   end
 end
