@@ -18,15 +18,21 @@ defmodule DataSchema.XML.Saxy do
   # a stack of all elements that we skip as that defeats the point of skipping. So instead
   # if we open a tag that has the same name as the parent "skipped" tag, we duplicate it
   # so that when we close it and pop the skip off the tag it still all works.
+  # A different (better?) way would be to keep a count of the number of duplicates. That
+  # would presumably be a smaller memory footprint as an integer would be smaller than a
+  # tuple I guess. This is the edgiest of edge cases though - would we expect to see
+  # lots of duplicate names? Certainly in HTML I guess...
+  # The tradeoff a bigger tuple all the time for a smaller mem footprint some of the time
+  # so the tradeoff is what you expet more of - duplicate nested ignored tags, or not that.
   def handle_event(
         :start_element,
         {tag_name, _},
-        %{stack: [{:skip, tag_name} | _] = stack} = state
+        %{stack: [{:skip, count, tag_name} | stack]} = state
       ) do
-    {:ok, %{state | stack: [{:skip, tag_name} | stack]}}
+    {:ok, %{state | stack: [{:skip, count + 1, tag_name} | stack]}}
   end
 
-  def handle_event(:start_element, _element, %{stack: [{:skip, _} | _]} = state) do
+  def handle_event(:start_element, _element, %{stack: [{:skip, _, _} | _]} = state) do
     {:ok, state}
   end
 
@@ -35,7 +41,7 @@ defmodule DataSchema.XML.Saxy do
 
     case Map.pop(current_schema, tag_name, :not_found) do
       {:not_found, _} ->
-        {:ok, %{state | stack: [{:skip, tag_name} | stack]}}
+        {:ok, %{state | stack: [{:skip, 0, tag_name} | stack]}}
 
       {child_schema, sibling_schema} ->
         attributes =
@@ -52,7 +58,7 @@ defmodule DataSchema.XML.Saxy do
   # REMEMBER! This event will fire multiple times for the same tag, I think it does before
   # and after XML nodes? See the tests for more.
 
-  def handle_event(:characters, _element, %{stack: [{:skip, _} | _]} = state) do
+  def handle_event(:characters, _element, %{stack: [{:skip, _, _} | _]} = state) do
     {:ok, state}
   end
 
@@ -79,11 +85,23 @@ defmodule DataSchema.XML.Saxy do
     {:ok, %{state | stack: [current | stack]}}
   end
 
-  def handle_event(:end_element, element_name, %{stack: [{:skip, element_name} | stack]} = state) do
+  def handle_event(
+        :end_element,
+        element_name,
+        %{stack: [{:skip, 0, element_name} | stack]} = state
+      ) do
     {:ok, %{state | stack: stack}}
   end
 
-  def handle_event(:end_element, _element_name, %{stack: [{:skip, _} | _]} = state) do
+  def handle_event(
+        :end_element,
+        element_name,
+        %{stack: [{:skip, count, element_name} | stack]} = state
+      ) do
+    {:ok, %{state | stack: [{:skip, count - 1, element_name} | stack]}}
+  end
+
+  def handle_event(:end_element, _element_name, %{stack: [{:skip, _, _} | _]} = state) do
     {:ok, state}
   end
 
