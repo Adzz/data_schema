@@ -360,8 +360,6 @@ defmodule DataSchema.XML.SaxyTest do
     end
   end
 
-  # This raises the interesting question of whether we should enforce the "present" stuff
-  # here or not...
   describe "fields in the schema that aren't in the XML" do
     test "when there are siblings that aren't in the XML it still works" do
       schema = %{
@@ -409,6 +407,73 @@ defmodule DataSchema.XML.SaxyTest do
 
       assert {:ok, form} = DataSchema.XML.Saxy.parse_string(xml, schema)
       assert form == {"A", [], [{"B", [{"attr", "b attr best"}], []}]}
+    end
+  end
+
+  describe "lists of things... supporting {:all in the schema" do
+    test "when the xml contains a list of stuff in our schema we keep them all" do
+      # schema = %{
+      #   "A" => %{
+      #     "G" => {:all, %{ "G:text" => true}}
+      #   }
+      # }
+
+      schema = %{
+        "A" => %{
+          # This allow us to know the parent, but means we
+          # have to do two queries into the map when checking for a
+          # field - with and without :all...
+          "G" => {:all, %{:text => true, {:attr, "attr"} => true}}
+        }
+      }
+
+      xml = """
+      <A attr=\"1\"><G>g wizz</G><G>g wizz 2</G><G>g wizz 3</G></A>
+      """
+
+      assert {:ok, form} = DataSchema.XML.Saxy.parse_string(xml, schema)
+
+      assert form ==
+               {"A", [],
+                [{"G", [], ["g wizz"]}, {"G", [], ["g wizz 2"]}, {"G", [], ["g wizz 3"]}]}
+    end
+
+    test "" do
+      xml = """
+      <A>
+        <G>g wizz 1</G>
+        <G>g wizz 2</G>
+        <B>this is b</B>
+        <G>g wizz 3</G>
+        <G>g wizz 4</G>
+      </A>
+      """
+
+      xml = """
+      <A>
+        <G><D>some txtz</D>g wizz 1</G>
+        <G>g wizz 2</G>
+        <B>this is b</B>
+        <G>g wizz 3</G>
+        <G>g wizz 4</G>
+      </A>
+      """
+
+      xml = """
+      <A>
+        a before
+        <G><D>some txtz</D>g wizz 1</G>
+        <G>g wizz 2</G>
+        a during
+        <B>this is b</B>
+        <G>g wizz 3</G>
+        <G>g wizz 4</G>
+        a text when we want a text too after
+      </A>
+      """
+
+      # We need to check getting all G's Ds and stuff like that.
+      # and getting all attrs. etc etc.
     end
   end
 end
