@@ -11,6 +11,10 @@ These are the fields. We can also generate this from compile time schemas (it's 
 schema)
 
 ```elixir
+IEx.Helpers.recompile()
+```
+
+```elixir
 fields = [
   field:
     {:response_sid,
@@ -578,16 +582,38 @@ This is the "create paths" function. It creates the full path from every field i
 defmodule Expand do
   def paths(fields, acc) do
     Enum.reduce(fields, acc, fn
-      {field, {_key, path, {_child_schema, child_fields}, _opts}}, acc
-      when field in [:has_one, :has_many] ->
+      {:has_many, {_key, path, {_child_schema, child_fields}, _opts}}, acc ->
+        last = List.last(path)
+        path = path |> List.replace_at(-1, {:all, last})
+
         child_fields
         |> paths([])
         |> Enum.reduce(acc, fn p, accu ->
           [path ++ p | accu]
         end)
 
-      {field, {_key, path, {_child_schema, child_fields}}}, acc
-      when field in [:has_one, :has_many] ->
+      {:has_many, {_key, path, {_child_schema, child_fields}}}, acc ->
+        last = List.last(path)
+        path = path |> List.replace_at(-1, {:all, last})
+
+        child_fields
+        |> paths([])
+        |> Enum.reduce(acc, fn p, accu ->
+          [path ++ p | accu]
+        end)
+
+      {:has_one, {_key, path, {_child_schema, child_fields}, _opts}}, acc ->
+        path = Enum.drop(path, -1)
+
+        child_fields
+        |> paths([])
+        |> Enum.reduce(acc, fn p, accu ->
+          [path ++ p | accu]
+        end)
+
+      {:has_one, {_key, path, {_child_schema, child_fields}}}, acc ->
+        path = Enum.drop(path, -1)
+
         child_fields
         |> paths([])
         |> Enum.reduce(acc, fn p, accu ->
@@ -608,6 +634,7 @@ paths = Expand.paths(fields, [])
 
 ```elixir
 sorted = Enum.sort_by(paths, & &1)
+# |> IO.inspect(limit: :infinity)
 ```
 
 ```elixir
@@ -625,6 +652,18 @@ defmodule MapUtils do
   # Key exists in both maps, but at least one of the values is
   # NOT a map. We fall back to standard merge behavior, preferring
   # the value on the right.
+  defp deep_resolve(_key, {:all, left}, {:all, right}) do
+    {:all, deep_merge(left, right)}
+  end
+
+  defp deep_resolve(_key, {:all, _left}, _right) do
+    raise "?"
+  end
+
+  defp deep_resolve(_key, _left, {:all, _right}) do
+    raise "?2"
+  end
+
   defp deep_resolve(_key, _left, right) do
     right
   end
@@ -635,14 +674,18 @@ defmodule Tree do
     Enum.reduce(paths, %{}, fn path, acc ->
       map =
         path
+        # |> Enum.reverse()
         |> dedup_path([])
-        |> IO.inspect(label: :deduped)
+        # |> IO.inspect(label: :deduped)
         |> Enum.reduce(%{}, fn
-          "text()", accu ->
+          "text()", _accu ->
             %{text: true}
 
-          "@" <> attr, accu ->
+          "@" <> attr, _accu ->
             %{{:attr, attr} => true}
+
+          {:all, key}, accu ->
+            %{key => {:all, accu}}
 
           key, accu ->
             %{key => accu}
@@ -663,6 +706,14 @@ defmodule Tree do
     [key | acc]
   end
 
+  def dedup_path([head, {:all, head} | rest], acc) do
+    dedup_path([{:all, head} | rest], acc)
+  end
+
+  def dedup_path([{:all, head}, head | rest], acc) do
+    dedup_path([{:all, head} | rest], acc)
+  end
+
   def dedup_path([head, head | rest], acc) do
     # If it is duplicated then we need to drop one
     # the next will be picked up in the next iteration. 
@@ -677,15 +728,11 @@ defmodule Tree do
 end
 
 schema = Tree.create(sorted)
+# |> IO.inspect(limit: :infinity)
 ```
 
 ```elixir
 large_xml = File.read!("/Users/adz/Duffel/saxy/test/support/fixture/really_large.xml")
 
 DataSchema.XML.Saxy.parse_string(large_xml, schema)
-|> IO.inspect(limit: :infinity)
-```
-
-```elixir
-[]
 ```
