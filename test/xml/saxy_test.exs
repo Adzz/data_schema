@@ -412,23 +412,19 @@ defmodule DataSchema.XML.SaxyTest do
 
   describe "lists of things... supporting {:all in the schema" do
     test "when the xml contains a list of stuff in our schema we keep them all" do
-      # schema = %{
-      #   "A" => %{
-      #     "G" => {:all, %{ "G:text" => true}}
-      #   }
-      # }
-
       schema = %{
         "A" => %{
-          # This allow us to know the parent, but means we
-          # have to do two queries into the map when checking for a
-          # field - with and without :all...
+          "C" => %{},
           "G" => {:all, %{:text => true, {:attr, "attr"} => true}}
         }
       }
 
       xml = """
-      <A attr=\"1\"><G>g wizz</G><G>g wizz 2</G><G>g wizz 3</G></A>
+      <A attr=\"1\">
+        <G>g wizz</G>
+        <G>g wizz 2</G>
+        <G>g wizz 3</G>
+      </A>
       """
 
       assert {:ok, form} = DataSchema.XML.Saxy.parse_string(xml, schema)
@@ -438,7 +434,44 @@ defmodule DataSchema.XML.SaxyTest do
                 [{"G", [], ["g wizz"]}, {"G", [], ["g wizz 2"]}, {"G", [], ["g wizz 3"]}]}
     end
 
-    test "" do
+    test "getting all attrs" do
+      schema = %{
+        "A" => %{
+          "C" => %{},
+          "G" => {:all, %{:text => true, {:attr, "attr"} => true}}
+        }
+      }
+
+      xml = """
+      <A>
+        <G attr="g wizz 1" />
+        <G attr="g wizz 2" />
+        <B>this is b</B>
+        <G attr="g wizz 3" />
+        <G attr="g wizz 4" />
+      </A>
+      """
+
+      assert {:ok, form} = DataSchema.XML.Saxy.parse_string(xml, schema)
+
+      assert form ==
+               {"A", [],
+                [
+                  {"G", [{"attr", "g wizz 1"}], []},
+                  {"G", [{"attr", "g wizz 2"}], []},
+                  {"G", [{"attr", "g wizz 3"}], []},
+                  {"G", [{"attr", "g wizz 4"}], []}
+                ]}
+    end
+
+    test "querying for all children when there are elements in between." do
+      schema = %{
+        "A" => %{
+          "C" => %{},
+          "G" => {:all, %{:text => true, {:attr, "attr"} => true}}
+        }
+      }
+
       xml = """
       <A>
         <G>g wizz 1</G>
@@ -449,6 +482,26 @@ defmodule DataSchema.XML.SaxyTest do
       </A>
       """
 
+      assert {:ok, form} = DataSchema.XML.Saxy.parse_string(xml, schema)
+
+      assert form ==
+               {"A", [],
+                [
+                  {"G", [], ["g wizz 1"]},
+                  {"G", [], ["g wizz 2"]},
+                  {"G", [], ["g wizz 3"]},
+                  {"G", [], ["g wizz 4"]}
+                ]}
+    end
+
+    test "text when there are children in the text that we dont want" do
+      schema = %{
+        "A" => %{
+          "C" => %{},
+          "G" => {:all, %{:text => true, {:attr, "attr"} => true}}
+        }
+      }
+
       xml = """
       <A>
         <G><D>some txtz</D>g wizz 1</G>
@@ -458,6 +511,27 @@ defmodule DataSchema.XML.SaxyTest do
         <G>g wizz 4</G>
       </A>
       """
+
+      assert {:ok, form} = DataSchema.XML.Saxy.parse_string(xml, schema)
+
+      assert form ==
+               {"A", [],
+                [
+                  {"G", [], ["g wizz 1"]},
+                  {"G", [], ["g wizz 2"]},
+                  {"G", [], ["g wizz 3"]},
+                  {"G", [], ["g wizz 4"]}
+                ]}
+    end
+
+    test "when there is text on the parent level" do
+      schema = %{
+        "A" => %{
+          :text => true,
+          "C" => %{},
+          "G" => {:all, %{:text => true, {:attr, "attr"} => true}}
+        }
+      }
 
       xml = """
       <A>
@@ -472,8 +546,96 @@ defmodule DataSchema.XML.SaxyTest do
       </A>
       """
 
-      # We need to check getting all G's Ds and stuff like that.
-      # and getting all attrs. etc etc.
+      assert {:ok, form} = DataSchema.XML.Saxy.parse_string(xml, schema)
+
+      assert form ==
+               {
+                 "A",
+                 [],
+                 [
+                   "\n  a before\n  ",
+                   {"G", [], ["g wizz 1"]},
+                   "\n  ",
+                   {"G", [], ["g wizz 2"]},
+                   "\n  a during\n  ",
+                   "\n  ",
+                   {"G", [], ["g wizz 3"]},
+                   "\n  ",
+                   {"G", [], ["g wizz 4"]},
+                   "\n  a text when we want a text too after\n"
+                 ]
+               }
+    end
+
+    test "all grandchildren text" do
+      schema = %{
+        "A" => %{
+          "C" =>
+            {:all,
+             %{
+               "G" => %{:text => true, {:attr, "attr"} => true}
+             }}
+        }
+      }
+
+      xml = """
+      <A>
+        <C><G>g wizz 1</G></C>
+        <C><G>g wizz 2</G></C>
+        <C><B>this is b</B></C>
+        <C><G>g wizz 3</G></C>
+        <C><G>g wizz 4</G></C>
+      </A>
+      """
+
+      assert {:ok, form} = DataSchema.XML.Saxy.parse_string(xml, schema)
+
+      assert form ==
+               {"A", [],
+                [
+                  {"C", [], [{"G", [], ["g wizz 1"]}]},
+                  {"C", [], [{"G", [], ["g wizz 2"]}]},
+                  {"C", [], []},
+                  {"C", [], [{"G", [], ["g wizz 3"]}]},
+                  {"C", [], [{"G", [], ["g wizz 4"]}]}
+                ]}
+    end
+
+    test "all grandchild attrs" do
+      schema = %{
+        "A" => %{
+          "C" =>
+            {:all,
+             %{
+               "G" => %{:text => true, {:attr, "attr"} => true}
+             }}
+        }
+      }
+
+      xml = """
+      <A>
+        <C><G attr="g wizz 1"></G></C>
+        <C><G attr="g wizz 2"></G></C>
+        <C><B>this is b</B></C>
+        <C><G attr="g wizz 3"></G></C>
+        <C><G attr="g wizz 4"></G></C>
+      </A>
+      """
+
+      assert {:ok, form} = DataSchema.XML.Saxy.parse_string(xml, schema)
+
+      assert form ==
+               {
+                 "A",
+                 [],
+                 [
+                   {"C", [], [{"G", [{"attr", "g wizz 1"}], []}]},
+                   {"C", [], [{"G", [{"attr", "g wizz 2"}], []}]},
+                   {"C", [], []},
+                   {"C", [], [{"G", [{"attr", "g wizz 3"}], []}]},
+                   {"C", [], [{"G", [{"attr", "g wizz 4"}], []}]}
+                 ]
+               }
     end
   end
 end

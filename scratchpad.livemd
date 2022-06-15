@@ -685,3 +685,7 @@ large_xml = File.read!("/Users/adz/Duffel/saxy/test/support/fixture/really_large
 DataSchema.XML.Saxy.parse_string(large_xml, schema)
 |> IO.inspect(limit: :infinity)
 ```
+
+```elixir
+[]
+```
