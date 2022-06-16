@@ -15,6 +15,32 @@ defmodule DataSchema.XML.SaxyTest do
       assert form == {"A", [{"attr", "1"}], ["text"]}
     end
 
+    test "when there is lots more XML than things we are querying for..." do
+      schema = %{
+        "A" => %{
+          {:attr, "attr"} => true
+        }
+      }
+
+      xml = """
+      <A attr=\"1\">
+        text
+        <B />
+        <B />
+        <B />
+        <B />
+        <B />
+        <B />
+        <B />
+        <B />
+        <B />
+      </A>
+      """
+
+      assert {:ok, form} = DataSchema.XML.Saxy.parse_string(xml, schema)
+      assert form == {"A", [{"attr", "1"}], []}
+    end
+
     test "we can ignore text of an element if it's not in the schema" do
       schema = %{
         "A" => %{
