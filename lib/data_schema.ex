@@ -10,6 +10,20 @@ defmodule DataSchema do
   @non_null_error_message "Field was marked as not null but was found to be null."
   @default_error_message "There was an error!"
 
+
+  def paths_for_schema(module) do
+    if Code.ensure_loaded?(schema) && !function_exported?(schema, :__data_schema_fields, 0) do
+      raise "Provided schema is not a valid DataSchema: #{inspect(schema)}"
+    end
+
+
+  end
+
+  # This handles runtime schemas?
+  def paths_for_schema(runtime_schema) when is_list(runtime_schema) do
+    raise "not implemented"
+  end
+
   @doc """
   Accepts a the module of a compile time schema and will expand it into a runtime schema
   recursively.
