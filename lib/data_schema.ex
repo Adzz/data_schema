@@ -10,30 +10,95 @@ defmodule DataSchema do
   @non_null_error_message "Field was marked as not null but was found to be null."
   @default_error_message "There was an error!"
 
+  # Do we want to flatten the paths? As in return absolute paths for a given root schema.
+  # could be good!
 
-  def paths_for_schema(module) do
-    if Code.ensure_loaded?(schema) && !function_exported?(schema, :__data_schema_fields, 0) do
+  def absolute_paths_for_schema(schema) when is_atom(schema) do
+    if Code.ensure_loaded?(schema) &&
+         !function_exported?(schema, :__data_schema_fields, 0) do
       raise "Provided schema is not a valid DataSchema: #{inspect(schema)}"
     end
 
-
+    schema
+    |> to_runtime_schema()
+    |> absolute_paths_for_schema()
   end
 
   # This handles runtime schemas?
-  def paths_for_schema(runtime_schema) when is_list(runtime_schema) do
-    raise "not implemented"
+  def absolute_paths_for_schema(runtime_schema) when is_list(runtime_schema) do
+    runtime_schema
+    |> Enum.reduce([], fn
+      {:has_one, {key, path, {_child_module, child_fields}}}, acc ->
+        child_fields
+        |> absolute_paths_for_schema()
+        |> Enum.reduce(acc, fn {k, p}, accu ->
+          [{[key] ++ k, path ++ p} | accu]
+        end)
+
+      {:has_one, {key, path, {_child_module, child_fields}, _opts}}, acc ->
+        child_fields
+        |> absolute_paths_for_schema()
+        |> Enum.reduce(acc, fn {k, p}, accu ->
+          [{[key] ++ k, path ++ p} | accu]
+        end)
+
+      {:has_many, {key, path, {_child_module, child_fields}}}, acc ->
+        child_fields
+        |> absolute_paths_for_schema()
+        |> Enum.reduce(acc, fn {k, p}, accu ->
+          [{[key] ++ k, path ++ p} | accu]
+        end)
+
+      {:has_many, {key, path, {_child_module, child_fields}, _opts}}, acc ->
+        child_fields
+        |> absolute_paths_for_schema()
+        |> Enum.reduce(acc, fn {k, p}, accu ->
+          [{[key] ++ k, path ++ p} | accu]
+        end)
+
+      {:aggregate, {key, child_fields, _cast_fn}}, acc ->
+        child_fields
+        |> absolute_paths_for_schema()
+        |> Enum.reduce(acc, fn {k, p}, accu ->
+          [{[key] ++ k, p} | accu]
+        end)
+
+      {:aggregate, {key, child_fields, _cast_fn, _opts}}, acc ->
+        child_fields
+        |> absolute_paths_for_schema()
+        |> Enum.reduce(acc, fn {k, p}, accu ->
+          [{[key] ++ k, [p]} | accu]
+        end)
+
+      {:list_of, {key, path, _cast_fn}}, acc ->
+        [{[key], [path]} | acc]
+
+      {:list_of, {key, path, _cast_fn, _opts}}, acc ->
+        [{[key], [path]} | acc]
+
+      {:field, {key, path, _cast_fn}}, acc ->
+        [{[key], [path]} | acc]
+
+      {:field, {key, path, _cast_fn, _opts}}, acc ->
+        [{[key], [path]} | acc]
+    end)
   end
 
   @doc """
   Accepts a the module of a compile time schema and will expand it into a runtime schema
   recursively.
   """
-  def to_runtime_schema(schema) do
-    if Code.ensure_loaded?(schema) && !function_exported?(schema, :__data_schema_fields, 0) do
+  def to_runtime_schema(schema) when is_atom(schema) do
+    if Code.ensure_loaded?(schema) &&
+         !function_exported?(schema, :__data_schema_fields, 0) do
       raise "Provided schema is not a valid DataSchema: #{inspect(schema)}"
     end
 
-    Enum.reduce(schema.__data_schema_fields(), [], fn
+    to_runtime_schema(schema.__data_schema_fields())
+  end
+
+  def to_runtime_schema([_ | _] = fields) do
+    Enum.reduce(fields, [], fn
       {:has_one, {key, path, child_module}}, acc ->
         child_schema = to_runtime_schema(child_module)
         [{:has_one, {key, path, {child_module, child_schema}}} | acc]
@@ -49,6 +114,15 @@ defmodule DataSchema do
       {:has_many, {key, path, child_module, opts}}, acc ->
         child_schema = to_runtime_schema(child_module)
         [{:has_many, {key, path, {child_module, child_schema}, opts}} | acc]
+
+      # The aggregate schema already is runtime, but it may include "has_one"s etc inside it.
+      {:aggregate, {key, nested_fields, cast_fn}}, acc ->
+        nested_fields = to_runtime_schema(nested_fields)
+        [{:aggregate, {key, nested_fields, cast_fn}} | acc]
+
+      {:aggregate, {key, nested_fields, cast_fn, opts}}, acc ->
+        nested_fields = to_runtime_schema(nested_fields)
+        [{:aggregate, {key, nested_fields, cast_fn, opts}} | acc]
 
       field, acc ->
         [field | acc]
