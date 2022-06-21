@@ -211,6 +211,8 @@ defmodule DataSchema do
         def __data_accessor, do: DataSchema.MapAccessor
       end
 
+      # TODO: refactor these enforce keys. We can call out to a data schema function instead
+      # that will do all the validations.
       @enforce_keys Enum.reduce(
                       unquote(fields),
                       [],
