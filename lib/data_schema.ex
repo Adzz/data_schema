@@ -7,8 +7,6 @@ defmodule DataSchema do
              |> List.first()
 
   @available_types [:field, :has_one, :has_many, :aggregate, :list_of]
-  @non_null_error_message "Field was marked as not null but was found to be null."
-  @default_error_message "There was an error!"
 
   # Do we want to flatten the paths? As in return absolute paths for a given root schema.
   # could be good!
@@ -673,7 +671,7 @@ defmodule DataSchema do
   defp process_field({:field, {field, path, cast_fn}}, struct, nullable?, accessor, data) do
     case {accessor.field(data, path), nullable?} do
       {nil, false} ->
-        {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
+        {:halt, {:error, DataSchema.Errors.null_error(field)}}
 
       {value, _} ->
         case call_cast_fn(cast_fn, value) do
@@ -682,20 +680,17 @@ defmodule DataSchema do
               {:cont, update_struct(struct, field, nil)}
             else
               # Instead of halt we would have to
-              {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
+              {:halt, {:error, DataSchema.Errors.null_error(field)}}
             end
 
           {:ok, value} ->
             {:cont, update_struct(struct, field, value)}
 
           {:error, message} ->
-            e = DataSchema.Errors.add_error(%DataSchema.Errors{}, {field, message})
-            {:halt, {:error, e}}
+            {:halt, {:error, DataSchema.Errors.new({field, message})}}
 
           :error ->
-            {:halt,
-             {:error,
-              DataSchema.Errors.add_error(%DataSchema.Errors{}, {field, @default_error_message})}}
+            {:halt, {:error, DataSchema.Errors.default_error(field)}}
 
           other_value ->
             raise_incorrect_cast_function_error(field, other_value)
@@ -715,22 +710,15 @@ defmodule DataSchema do
         if nullable? do
           {:cont, update_struct(struct, field, nil)}
         else
-          {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
+          {:halt, {:error, DataSchema.Errors.null_error(field)}}
         end
 
       value ->
         case to_struct(value, cast_module, inline_fields, accessor, []) do
           # It's not possible for to_struct to return nil so we don't handle that case here
-          {:ok, value} ->
-            {:cont, update_struct(struct, field, value)}
-
-          {:error, error} ->
-            {:halt, {:error, %DataSchema.Errors{errors: [{field, error}]}}}
-
-          :error ->
-            {:halt,
-             {:error,
-              DataSchema.Errors.add_error(%DataSchema.Errors{}, {field, @default_error_message})}}
+          {:ok, value} -> {:cont, update_struct(struct, field, value)}
+          {:error, error} -> {:halt, {:error, DataSchema.Errors.new({field, error})}}
+          :error -> {:halt, {:error, DataSchema.Errors.default_error(field)}}
         end
     end
   end
@@ -741,22 +729,15 @@ defmodule DataSchema do
         if nullable? do
           {:cont, update_struct(struct, field, nil)}
         else
-          {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
+          {:halt, {:error, DataSchema.Errors.null_error(field)}}
         end
 
       value ->
         case to_struct(value, cast_module) do
           # It's not possible for to_struct to return nil so we don't handle that case here
-          {:ok, value} ->
-            {:cont, update_struct(struct, field, value)}
-
-          {:error, error} ->
-            {:halt, {:error, %DataSchema.Errors{errors: [{field, error}]}}}
-
-          :error ->
-            {:halt,
-             {:error,
-              DataSchema.Errors.add_error(%DataSchema.Errors{}, {field, @default_error_message})}}
+          {:ok, value} -> {:cont, update_struct(struct, field, value)}
+          {:error, error} -> {:halt, {:error, DataSchema.Errors.new({field, error})}}
+          :error -> {:halt, {:error, DataSchema.Errors.default_error(field)}}
         end
     end
   end
@@ -773,7 +754,7 @@ defmodule DataSchema do
         if nullable? do
           {:cont, update_struct(struct, field, nil)}
         else
-          {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
+          {:halt, {:error, DataSchema.Errors.null_error(field)}}
         end
 
       data ->
@@ -785,16 +766,9 @@ defmodule DataSchema do
           # using the parent always doesn't work for compile time schemas. So that's hout
           # now doing one thing for both is either confusing or complicated.
           case to_struct(datum, cast_module, inline_fields, accessor, []) do
-            {:ok, struct} ->
-              {:cont, [struct | acc]}
-
-            {:error, error} ->
-              {:halt, {:error, %DataSchema.Errors{errors: [{field, error}]}}}
-
-            :error ->
-              {:halt,
-               {:error,
-                DataSchema.Errors.add_error(%DataSchema.Errors{}, {field, @default_error_message})}}
+            {:ok, struct} -> {:cont, [struct | acc]}
+            {:error, error} -> {:halt, {:error, DataSchema.Errors.new({field, error})}}
+            :error -> {:halt, {:error, DataSchema.Errors.default_error(field)}}
           end
         end)
         |> case do
@@ -819,7 +793,7 @@ defmodule DataSchema do
         if nullable? do
           {:cont, update_struct(struct, field, nil)}
         else
-          {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
+          {:halt, {:error, DataSchema.Errors.null_error(field)}}
         end
 
       data ->
@@ -827,16 +801,9 @@ defmodule DataSchema do
         |> Enum.reduce_while([], fn datum, acc ->
           # It's not possible for to_struct to return nil so we don't worry about it here.
           case to_struct(datum, cast_module) do
-            {:ok, struct} ->
-              {:cont, [struct | acc]}
-
-            {:error, error} ->
-              {:halt, {:error, %DataSchema.Errors{errors: [{field, error}]}}}
-
-            :error ->
-              {:halt,
-               {:error,
-                DataSchema.Errors.add_error(%DataSchema.Errors{}, {field, @default_error_message})}}
+            {:ok, struct} -> {:cont, [struct | acc]}
+            {:error, error} -> {:halt, {:error, DataSchema.Errors.new({field, error})}}
+            :error -> {:halt, {:error, DataSchema.Errors.default_error(field)}}
           end
         end)
         |> case do
@@ -855,7 +822,7 @@ defmodule DataSchema do
         if nullable? do
           {:cont, update_struct(struct, field, nil)}
         else
-          {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
+          {:halt, {:error, DataSchema.Errors.null_error(field)}}
         end
 
       data ->
@@ -868,19 +835,17 @@ defmodule DataSchema do
                 # better to not remove information...?
                 {:cont, [nil | acc]}
               else
-                {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
+                {:halt, {:error, DataSchema.Errors.null_error(field)}}
               end
 
             {:ok, value} ->
               {:cont, [value | acc]}
 
             {:error, error} ->
-              {:halt, {:error, DataSchema.Errors.add_error(%DataSchema.Errors{}, {field, error})}}
+              {:halt, {:error, DataSchema.Errors.new({field, error})}}
 
             :error ->
-              {:halt,
-               {:error,
-                DataSchema.Errors.add_error(%DataSchema.Errors{}, {field, @default_error_message})}}
+              {:halt, {:error, DataSchema.Errors.default_error(field)}}
 
             other_value ->
               raise_incorrect_cast_function_error(field, other_value)
@@ -899,7 +864,7 @@ defmodule DataSchema do
   defp aggregate(fields, accessor, data, opts, field, cast_fn, aggregate, parent, nullable?) do
     case to_struct(data, aggregate, fields, accessor, opts) do
       {:error, %DataSchema.Errors{} = error} ->
-        {:halt, {:error, DataSchema.Errors.add_error(%DataSchema.Errors{}, {field, error})}}
+        {:halt, {:error, DataSchema.Errors.new({field, error})}}
 
       {:ok, values_map} ->
         case call_cast_fn(cast_fn, values_map) do
@@ -907,19 +872,17 @@ defmodule DataSchema do
             if nullable? do
               {:cont, update_struct(parent, field, nil)}
             else
-              {:halt, {:error, null_error(%DataSchema.Errors{}, field)}}
+              {:halt, {:error, DataSchema.Errors.null_error(field)}}
             end
 
           {:ok, value} ->
             {:cont, update_struct(parent, field, value)}
 
           {:error, error} ->
-            {:halt, {:error, DataSchema.Errors.add_error(%DataSchema.Errors{}, {field, error})}}
+            {:halt, {:error, DataSchema.Errors.new({field, error})}}
 
           :error ->
-            {:halt,
-             {:error,
-              DataSchema.Errors.add_error(%DataSchema.Errors{}, {field, @default_error_message})}}
+            {:halt, {:error, DataSchema.Errors.default_error(field)}}
 
           other_value ->
             raise_incorrect_cast_function_error(field, other_value)
@@ -947,10 +910,6 @@ defmodule DataSchema do
 
   defp update_struct(%{} = map, field, item) do
     Map.put(map, field, item)
-  end
-
-  defp null_error(error, field) do
-    DataSchema.Errors.add_error(error, {field, @non_null_error_message})
   end
 
   # This just lets us use either a module name for the data type OR a one arity fn.
