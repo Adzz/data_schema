@@ -1,4 +1,4 @@
-defmodule DataSchema.XML.SaxyStruct do
+defmodule DataSchema.XML.CastedSimpleForm do
   @moduledoc """
   Experiments in efficient XML parsing. This is a Saxy handler that only keeps elements
   that appear in a data schema. It builds a simple form representation of the XML, but
@@ -65,13 +65,7 @@ defmodule DataSchema.XML.SaxyStruct do
             end
         end
 
-      {{parent_key, :has_one, {child_acc, child_schema}, opts}, sibling_schema} ->
-        schemas = [child_schema, sibling_schema | rest_schemas]
-
-        {:ok, {schemas, [{parent_key, :has_one, child_acc, opts} | stack]}}
-        |> IO.inspect(limit: :infinity, label: "")
-
-      {{acc, child_schema}, sibling_schema} ->
+      {child_schema, sibling_schema} ->
         # We need to allow map and struct, if it's a struct we want to ensure the
         # key exists probably. BUT I think we need another bit of state which will
         # be a stack for the acc, that we collapse in when we collapse the schemas.

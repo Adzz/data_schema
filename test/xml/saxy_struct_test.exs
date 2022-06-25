@@ -1,9 +1,9 @@
 defmodule DataSchema.XML.SaxyStructTest do
   use ExUnit.Case, async: true
 
-  describe "handle_event :text " do
+  describe "handle_event :field / :text " do
     test "when :text has an error we halt" do
-      schema = %{"A" => %{:text => {:a, fn _ -> :error end, []}}}
+      schema = %{"A" => {%{}, %{:text => {:a, :field, fn _ -> :error end, []}}}}
       xml = "<A attr=\"1\">text</A>"
 
       assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) ==
@@ -11,7 +11,7 @@ defmodule DataSchema.XML.SaxyStructTest do
     end
 
     test "when text is nil but shouldn't be we error" do
-      schema = %{"A" => %{:text => {:a, fn _ -> {:ok, nil} end, []}}}
+      schema = %{"A" => {%{}, %{:text => {:a, :field, fn _ -> {:ok, nil} end, []}}}}
       xml = "<A attr=\"1\">text</A>"
 
       assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) ==
@@ -22,9 +22,10 @@ defmodule DataSchema.XML.SaxyStructTest do
     end
 
     test "when we error with a message from cast we return that" do
-      schema = %{"A" => %{:text => {:a, fn _ -> {:error, "hey watcha doing"} end, []}}}
+      schema = %{
+        "A" => {%{}, %{:text => {:a, :field, fn _ -> {:error, "hey watcha doing"} end, []}}}
+      }
 
-      # Error with message
       xml = "<A attr=\"1\">text</A>"
 
       assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) ==
@@ -35,7 +36,7 @@ defmodule DataSchema.XML.SaxyStructTest do
     end
 
     test "we raise if the casting function doesn't return an okay / error tuple" do
-      schema = %{"A" => %{:text => {:a, fn _ -> "hey watcha doing" end, []}}}
+      schema = %{"A" => {%{}, %{:text => {:a, :field, fn _ -> "hey watcha doing" end, []}}}}
       xml = "<A attr=\"1\">text</A>"
 
       message =
@@ -47,15 +48,18 @@ defmodule DataSchema.XML.SaxyStructTest do
     end
 
     test "we cast the value if it returns okay" do
-      schema = %{"A" => %{:text => {:a, fn s -> {:ok, String.to_integer(s)} end, []}}}
+      schema = %{
+        "A" => {%{}, %{:text => {:a, :field, fn s -> {:ok, String.to_integer(s)} end, []}}}
+      }
+
       xml = "<A attr=\"1\">250</A>"
-      assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) == {:ok, {"A", [], [250]}}
+      assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) == {:ok, %{a: 250}}
     end
   end
 
-  describe "attrs" do
+  describe "handle event :field / attrs" do
     test "when has an error we halt" do
-      schema = %{"A" => %{{:attr, "attr"} => {:a, fn _ -> :error end, []}}}
+      schema = %{"A" => {%{}, %{{:attr, "attr"} => {:a, :field, fn _ -> :error end, []}}}}
       xml = "<A attr=\"1\">text</A>"
 
       assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) ==
@@ -63,7 +67,7 @@ defmodule DataSchema.XML.SaxyStructTest do
     end
 
     test "when text is nil but shouldn't be we error" do
-      schema = %{"A" => %{{:attr, "attr"} => {:a, fn _ -> {:ok, nil} end, []}}}
+      schema = %{"A" => {%{}, %{{:attr, "attr"} => {:a, :field, fn _ -> {:ok, nil} end, []}}}}
       xml = "<A attr=\"1\">text</A>"
 
       assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) ==
@@ -74,9 +78,11 @@ defmodule DataSchema.XML.SaxyStructTest do
     end
 
     test "when we error with a message from cast we return that" do
-      schema = %{"A" => %{{:attr, "attr"} => {:a, fn _ -> {:error, "hey watcha doing"} end, []}}}
+      schema = %{
+        "A" =>
+          {%{}, %{{:attr, "attr"} => {:a, :field, fn _ -> {:error, "hey watcha doing"} end, []}}}
+      }
 
-      # Error with message
       xml = "<A attr=\"1\">text</A>"
 
       assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) ==
@@ -87,7 +93,10 @@ defmodule DataSchema.XML.SaxyStructTest do
     end
 
     test "we raise if the casting function doesn't return an okay / error tuple" do
-      schema = %{"A" => %{{:attr, "attr"} => {:a, fn _ -> "hey watcha doing" end, []}}}
+      schema = %{
+        "A" => {%{}, %{{:attr, "attr"} => {:a, :field, fn _ -> "hey watcha doing" end, []}}}
+      }
+
       xml = "<A attr=\"1\">text</A>"
 
       message =
@@ -99,29 +108,53 @@ defmodule DataSchema.XML.SaxyStructTest do
     end
 
     test "we cast the value if it returns okay" do
-      schema = %{"A" => %{{:attr, "attr"} => {:a, fn s -> {:ok, String.to_integer(s)} end, []}}}
+      schema = %{
+        "A" =>
+          {%{}, %{{:attr, "attr"} => {:a, :field, fn s -> {:ok, String.to_integer(s)} end, []}}}
+      }
+
       xml = "<A attr=\"1\">250</A>"
 
-      assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) ==
-               {:ok, {"A", [{"attr", 1}], []}}
+      assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) == {:ok, %{a: 1}}
+    end
+  end
+
+  describe ":has_one " do
+    test "we can create a nested struct" do
+      b_schema = %{
+        "B" =>
+          {%{}, %{{:attr, "attr"} => {:b, :field, fn s -> {:ok, String.to_integer(s)} end, []}}}
+      }
+
+      schema = %{
+        "A" =>
+          {%{},
+           %{
+             "B" => {:b, :has_one, {%{}, b_schema}, []}
+           }}
+      }
+
+      xml = "<A attr=\"1\"><B>250</B></A>"
+
+      assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) == {:ok, %{a: 1}}
     end
   end
 
   describe "rest " do
-    test "creating a DOM with one root node works" do
-      # We could simplify by always having options when we create these schemas. As
-      # these will likely be derived from the usual data schemas.
-      schema = %{
-        "A" => %{
-          :text => {:a, DataSchema.String, []},
-          {:attr, "attr"} => {:b, DataSchema.String, []}
-        }
-      }
+    # test "creating a DOM with one root node works" do
+    #   # We could simplify by always having options when we create these schemas. As
+    #   # these will likely be derived from the usual data schemas.
+    #   schema = %{
+    #     "A" => %{
+    #       :text => {:a, DataSchema.String, []},
+    #       {:attr, "attr"} => {:b, DataSchema.String, []}
+    #     }
+    #   }
 
-      xml = "<A attr=\"1\">text</A>"
-      assert {:ok, form} = DataSchema.XML.SaxyStruct.parse_string(xml, schema)
-      assert form == {"A", [{"attr", "1"}], ["text"]}
-    end
+    #   xml = "<A attr=\"1\">text</A>"
+    #   assert {:ok, form} = DataSchema.XML.SaxyStruct.parse_string(xml, schema)
+    #   assert form == {"A", [{"attr", "1"}], ["text"]}
+    # end
 
     #   test "when there is lots more XML than things we are querying for..." do
     #     schema = %{
