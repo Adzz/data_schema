@@ -121,10 +121,7 @@ defmodule DataSchema.XML.SaxyStructTest do
 
   describe ":has_one " do
     test "we can create a nested struct" do
-      b_schema = %{
-        "B" =>
-          {%{}, %{{:attr, "attr"} => {:b, :field, fn s -> {:ok, String.to_integer(s)} end, []}}}
-      }
+      b_schema = %{{:attr, "attr"} => {:b, :field, fn s -> {:ok, String.to_integer(s)} end, []}}
 
       schema = %{
         "A" =>
@@ -134,9 +131,25 @@ defmodule DataSchema.XML.SaxyStructTest do
            }}
       }
 
-      xml = "<A attr=\"1\"><B>250</B></A>"
+      xml = "<A attr=\"1\"><B attr=\"2\">250</B></A>"
 
-      assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) == {:ok, %{a: 1}}
+      assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) == {:ok, %{b: %{b: 2}}}
+    end
+
+    test "text" do
+      b_schema = %{:text => {:b, :field, fn s -> {:ok, String.to_integer(s)} end, []}}
+
+      schema = %{
+        "A" =>
+          {%{},
+           %{
+             "B" => {:b, :has_one, {%{}, b_schema}, []}
+           }}
+      }
+
+      xml = "<A attr=\"1\"><B attr=\"2\">250</B></A>"
+
+      assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) == {:ok, %{b: %{b: 250}}}
     end
   end
 

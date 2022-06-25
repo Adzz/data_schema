@@ -4,6 +4,11 @@ defmodule DataSchema.XML.CastedSimpleForm do
   that appear in a data schema. It builds a simple form representation of the XML, but
   only puts in elements and attributes that exist in a schema. Check the tests for examples
   of what the schema should look like (it should be a tree that mirrors the structure).
+
+
+  This cases the simple form, the schema needs to look something like:
+
+    %{"A" => %{:text => {:a, fn _ -> :error end, []}}}
   """
 
   @behaviour Saxy.Handler
@@ -34,12 +39,12 @@ defmodule DataSchema.XML.CastedSimpleForm do
       {:not_found, _} ->
         {:ok, {schemas, [{:skip, 0, tag_name} | stack]}}
 
-      {{acc, {:all, child_schema}}, sibling_schema} ->
+      {{:all, child_schema}, sibling_schema} ->
         case stack do
           # This case is when we see a repeated tag. It means we do less work because
           # we know we don't have to touch the schemas here at all.
           [{^tag_name, _, _} | _] ->
-            case get_attributes(attributes, child_schema, acc) do
+            case get_attributes(attributes, child_schema) do
               {:error, _} = error ->
                 {:stop, error}
 
@@ -49,7 +54,7 @@ defmodule DataSchema.XML.CastedSimpleForm do
             end
 
           [{_parent_tag, _, _} | _] ->
-            case get_attributes(attributes, child_schema, acc) do
+            case get_attributes(attributes, child_schema) do
               {:error, _} = error ->
                 {:stop, error}
 
@@ -66,23 +71,14 @@ defmodule DataSchema.XML.CastedSimpleForm do
         end
 
       {child_schema, sibling_schema} ->
-        # We need to allow map and struct, if it's a struct we want to ensure the
-        # key exists probably. BUT I think we need another bit of state which will
-        # be a stack for the acc, that we collapse in when we collapse the schemas.
-        # The Q is if you get the schema from the map or not, or just take the root
-        # one. I think we want to be able to specify each child struct so we need to
-        # be able to turn a runtime schema into whatever representation we need I guess.
-        # So like all that so say I think we get the acc from the schemas, but that
-        # makes it a bit tricky....
-        case get_attributes(attributes, child_schema, acc) do
+        case get_attributes(attributes, child_schema) do
           {:error, _} = error ->
             {:stop, error}
 
-          with_attributes ->
-            # tag = {tag_name, attributes, []}
+          attributes ->
+            tag = {tag_name, attributes, []}
             schemas = [child_schema, sibling_schema | rest_schemas]
-            [_ | rest_stack] = stack
-            {:ok, {schemas, [with_attributes | rest_stack]}}
+            {:ok, {schemas, [tag | stack]}}
         end
     end
   end
@@ -98,11 +94,12 @@ defmodule DataSchema.XML.CastedSimpleForm do
       :not_found ->
         {:ok, state}
 
-      {key, :field, cast_fn, opts} ->
+      {key, cast_fn, opts} ->
         case cast_value({key, cast_fn, opts}, chars) do
           {:ok, value} ->
-            [acc | rest_stack] = stack
-            {:ok, {schemas, [update_accumulator(acc, key, value) | rest_stack]}}
+            [{tag_name, attributes, content} | stack] = stack
+            current = {tag_name, attributes, [value | content]}
+            {:ok, {schemas, [current | stack]}}
 
           {:error, _} = error ->
             {:stop, error}
@@ -131,28 +128,17 @@ defmodule DataSchema.XML.CastedSimpleForm do
     {:ok, state}
   end
 
-  def handle_event(:end_element, tag_name, {schemas, stack} = s) do
-    # SO the question has become when do we know we can "collapse" into the parent?
-    # Do we need to? we need one answer to rule them all.
-
-    # Problem is we don't know which tag we are closing because we lost that info.
-    # We could keep a stack of tags as well. we could also just collapse everything at the
-    # end? That wont work for siblings.
-
-    # Do we need to do anything? Yes when we are closing a has many for ex.
-    # That means we _have_ to know if we are a has_many or not. we need to know the
-    # field type
-    # s |> IO.inspect(limit: :infinity, label: "ssssssss")
-    # current = {tag_name, attributes, Enum.reverse(content)}
+  def handle_event(:end_element, tag_name, {schemas, [{tag_name, attributes, content} | stack]}) do
+    current = {tag_name, attributes, Enum.reverse(content)}
     [_current_schema | rest_schemas] = schemas
 
     case stack do
-      # [] ->
-      #   {:ok, current}
+      [] ->
+        {:ok, current}
 
       [parent | rest] ->
-        # {parent_tag_name, parent_attributes, parent_content} = parent
-        # parent = {parent_tag_name, parent_attributes, [current | parent_content]}
+        {parent_tag_name, parent_attributes, parent_content} = parent
+        parent = {parent_tag_name, parent_attributes, [current | parent_content]}
         {:ok, {rest_schemas, [parent | rest]}}
     end
   end
@@ -161,34 +147,37 @@ defmodule DataSchema.XML.CastedSimpleForm do
     {:ok, state}
   end
 
-  # defp unwrap_schema({_acc, {:all, schema}}), do: schema
   defp unwrap_schema({:all, schema}), do: schema
-  # defp unwrap_schema({_acc,  schema}), do: schema
   defp unwrap_schema(%{} = schema), do: schema
 
   def parse_string(data, schema) do
     # TODO: once it all works make this a tuple instead of a map for perf.
     # benchmark both approaches.
-    state = {[schema], [%{}]}
+    state = {[schema], []}
 
     case Saxy.parse_string(data, __MODULE__, state, []) do
-      {:ok, {:error, _reason} = error} -> error
+      {:ok, {:error, _reason} = error} ->
+        error
+
       # If we are returned an empty stack that means nothing in the XML was in the schema.
       # If we found even one thing we would be returned a simple form node.
-      {:ok, {_, []}} -> {:error, :not_found}
-      {:ok, {_, [struct]}} -> {:ok, struct}
+      {:ok, {_, []}} ->
+        {:error, :not_found}
+
+      {:ok, struct} ->
+        {:ok, struct}
     end
   end
 
-  defp get_attributes(attributes, schema, acc) do
-    Enum.reduce_while(attributes, acc, fn {attr, value}, acc ->
+  defp get_attributes(attributes, schema) do
+    Enum.reduce_while(attributes, [], fn {attr, value}, acc ->
       case Map.get(schema, {:attr, attr}, :not_found) do
         :not_found ->
           {:cont, acc}
 
-        {key, :field, cast_fn, opts} ->
+        {key, cast_fn, opts} ->
           case cast_value({key, cast_fn, opts}, value) do
-            {:ok, value} -> {:cont, update_accumulator(acc, key, value)}
+            {:ok, value} -> {:cont, [{attr, value} | acc]}
             {:error, _} = error -> {:halt, error}
           end
       end
@@ -227,9 +216,6 @@ defmodule DataSchema.XML.CastedSimpleForm do
         raise DataSchema.InvalidCastFunction, message: message
     end
   end
-
-  defp update_accumulator(%_struct{} = acc, key, value), do: %{acc | key => value}
-  defp update_accumulator(%{} = acc, key, value), do: Map.put(acc, key, value)
 
   defp call_cast_fn({module, fun, args}, value), do: apply(module, fun, [value | args])
   defp call_cast_fn(module, value) when is_atom(module), do: module.cast(value)

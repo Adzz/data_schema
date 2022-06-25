@@ -66,10 +66,14 @@ defmodule DataSchema.XML.SaxyStruct do
         end
 
       {{parent_key, :has_one, {child_acc, child_schema}, opts}, sibling_schema} ->
-        schemas = [child_schema, sibling_schema | rest_schemas]
+        case get_attributes(attributes, child_schema, child_acc) do
+          {:error, _} = error ->
+            {:stop, error}
 
-        {:ok, {schemas, [{parent_key, :has_one, child_acc, opts} | stack]}}
-        |> IO.inspect(limit: :infinity, label: "")
+          with_attributes ->
+            schemas = [child_schema, sibling_schema | rest_schemas]
+            {:ok, {schemas, [{tag_name, parent_key, :has_one, with_attributes, opts} | stack]}}
+        end
 
       {{acc, child_schema}, sibling_schema} ->
         # We need to allow map and struct, if it's a struct we want to ensure the
@@ -97,6 +101,9 @@ defmodule DataSchema.XML.SaxyStruct do
     {:ok, state}
   end
 
+  # def handle_event(:characters, chars, {schemas, [ | rest_stack]} = state) do
+  # end
+
   def handle_event(:characters, chars, {schemas, stack} = state) do
     [current_schema | _rest_schemas] = schemas
 
@@ -107,8 +114,15 @@ defmodule DataSchema.XML.SaxyStruct do
       {key, :field, cast_fn, opts} ->
         case cast_value({key, cast_fn, opts}, chars) do
           {:ok, value} ->
-            [acc | rest_stack] = stack
-            {:ok, {schemas, [update_accumulator(acc, key, value) | rest_stack]}}
+            case stack do
+              [{parent_tag, parent_key, :has_one, child_acc, opts} | rest_stack] ->
+                updated_child = update_accumulator(child_acc, key, value)
+                updated = {parent_tag, parent_key, :has_one, updated_child, opts}
+                {:ok, {schemas, [updated | rest_stack]}}
+
+              [acc | rest_stack] ->
+                {:ok, {schemas, [update_accumulator(acc, key, value) | rest_stack]}}
+            end
 
           {:error, _} = error ->
             {:stop, error}
@@ -120,7 +134,7 @@ defmodule DataSchema.XML.SaxyStruct do
     [{tag_name, attributes, content} | stack] = stack
     # We probably want to like parse the cdata... But leave like this for now.
     # We also want to only add it if it's in the schema, but until we have a c-data example
-    # let's just always include it and see how we need to handle it later.
+    # let's just always include it and see how we need to handle it later?
     current = {tag_name, attributes, [{:cdata, chars} | content]}
     {:ok, {schemas, [current | stack]}}
   end
@@ -137,7 +151,18 @@ defmodule DataSchema.XML.SaxyStruct do
     {:ok, state}
   end
 
-  def handle_event(:end_element, tag_name, {schemas, stack} = s) do
+  def handle_event(
+        :end_element,
+        tag_name,
+        {schemas, [{tag_name, parent_key, :has_one, child_acc, _opts}, acc | rest_stack]}
+      ) do
+    [_current_schema | rest_schemas] = schemas
+
+    with_child = update_accumulator(acc, parent_key, child_acc)
+    {:ok, {rest_schemas, [with_child | rest_stack]}}
+  end
+
+  def handle_event(:end_element, _tag_name, {schemas, stack}) do
     # SO the question has become when do we know we can "collapse" into the parent?
     # Do we need to? we need one answer to rule them all.
 
@@ -153,6 +178,14 @@ defmodule DataSchema.XML.SaxyStruct do
     [_current_schema | rest_schemas] = schemas
 
     case stack do
+      # I think we need to know the parent XML node otherwise we wont know when to
+      # collapse into the parent struct. We only do that when the parent closes.
+      # So let's add that to the state?
+      # [{tag_name, parent_key, :has_one, child_acc, _opts} | _] ->
+      #   {:ok, {rest_schemas, [parent | rest]}}
+
+      #   raise "h"
+
       # [] ->
       #   {:ok, current}
 
