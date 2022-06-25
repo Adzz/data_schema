@@ -76,22 +76,26 @@ defmodule DataSchema.XML.SaxyStruct do
         end
 
       {{acc, child_schema}, sibling_schema} ->
-        # We need to allow map and struct, if it's a struct we want to ensure the
-        # key exists probably. BUT I think we need another bit of state which will
-        # be a stack for the acc, that we collapse in when we collapse the schemas.
-        # The Q is if you get the schema from the map or not, or just take the root
-        # one. I think we want to be able to specify each child struct so we need to
-        # be able to turn a runtime schema into whatever representation we need I guess.
-        # So like all that so say I think we get the acc from the schemas, but that
-        # makes it a bit tricky....
         case get_attributes(attributes, child_schema, acc) do
           {:error, _} = error ->
             {:stop, error}
 
           with_attributes ->
-            # tag = {tag_name, attributes, []}
             schemas = [child_schema, sibling_schema | rest_schemas]
             [_ | rest_stack] = stack
+            {:ok, {schemas, [with_attributes | rest_stack]}}
+        end
+
+      {child_schema, sibling_schema} ->
+        # We may have to case the acc here as it could be a has_one?
+        [acc | rest_stack] = stack
+
+        case get_attributes(attributes, child_schema, acc) do
+          {:error, _} = error ->
+            {:stop, error}
+
+          with_attributes ->
+            schemas = [child_schema, sibling_schema | rest_schemas]
             {:ok, {schemas, [with_attributes | rest_stack]}}
         end
     end
@@ -163,35 +167,10 @@ defmodule DataSchema.XML.SaxyStruct do
   end
 
   def handle_event(:end_element, _tag_name, {schemas, stack}) do
-    # SO the question has become when do we know we can "collapse" into the parent?
-    # Do we need to? we need one answer to rule them all.
-
-    # Problem is we don't know which tag we are closing because we lost that info.
-    # We could keep a stack of tags as well. we could also just collapse everything at the
-    # end? That wont work for siblings.
-
-    # Do we need to do anything? Yes when we are closing a has many for ex.
-    # That means we _have_ to know if we are a has_many or not. we need to know the
-    # field type
-    # s |> IO.inspect(limit: :infinity, label: "ssssssss")
-    # current = {tag_name, attributes, Enum.reverse(content)}
     [_current_schema | rest_schemas] = schemas
 
     case stack do
-      # I think we need to know the parent XML node otherwise we wont know when to
-      # collapse into the parent struct. We only do that when the parent closes.
-      # So let's add that to the state?
-      # [{tag_name, parent_key, :has_one, child_acc, _opts} | _] ->
-      #   {:ok, {rest_schemas, [parent | rest]}}
-
-      #   raise "h"
-
-      # [] ->
-      #   {:ok, current}
-
       [parent | rest] ->
-        # {parent_tag_name, parent_attributes, parent_content} = parent
-        # parent = {parent_tag_name, parent_attributes, [current | parent_content]}
         {:ok, {rest_schemas, [parent | rest]}}
     end
   end

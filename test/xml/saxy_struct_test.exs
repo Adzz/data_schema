@@ -132,7 +132,6 @@ defmodule DataSchema.XML.SaxyStructTest do
       }
 
       xml = "<A attr=\"1\"><B attr=\"2\">250</B></A>"
-
       assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) == {:ok, %{b: %{b: 2}}}
     end
 
@@ -148,8 +147,23 @@ defmodule DataSchema.XML.SaxyStructTest do
       }
 
       xml = "<A attr=\"1\"><B attr=\"2\">250</B></A>"
-
       assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) == {:ok, %{b: %{b: 250}}}
+    end
+
+    test "attr when there are siblings" do
+      b_schema = %{{:attr, "attr"} => {:b, :field, fn s -> {:ok, String.to_integer(s)} end, []}}
+
+      schema = %{
+        "A" =>
+          {%{},
+           %{
+             "B" => {:a, :has_one, {%{}, b_schema}, []},
+             "C" => %{:text => {:c, :field, fn s -> {:ok, String.to_integer(s)} end, []}}
+           }}
+      }
+
+      xml = "<A attr=\"1\"><B attr=\"2\">250</B><C>1234</C></A>"
+      assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) == {:ok, %{a: %{b: 2}, c: 1234}}
     end
   end
 
