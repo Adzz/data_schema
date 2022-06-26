@@ -161,7 +161,6 @@ defmodule DataSchema.XML.SaxyStruct do
         {schemas, [{tag_name, parent_key, :has_one, child_acc, _opts}, acc | rest_stack]}
       ) do
     [_current_schema | rest_schemas] = schemas
-
     with_child = update_accumulator(acc, parent_key, child_acc)
     {:ok, {rest_schemas, [with_child | rest_stack]}}
   end
@@ -244,6 +243,14 @@ defmodule DataSchema.XML.SaxyStruct do
 
         raise DataSchema.InvalidCastFunction, message: message
     end
+  end
+
+  # defp accumulator({_parent_tag, _parent_key, :has_one, acc, _opts}), do: acc
+  # defp accumulator(%{} = acc), do: acc
+
+  defp update_accumulator({parent_tag, parent_key, :has_one, acc, opts}, key, value) do
+    updated = update_accumulator(acc, key, value)
+    {parent_tag, parent_key, :has_one, updated, opts}
   end
 
   defp update_accumulator(%_struct{} = acc, key, value), do: %{acc | key => value}

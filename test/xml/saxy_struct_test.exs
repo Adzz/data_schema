@@ -186,6 +186,40 @@ defmodule DataSchema.XML.SaxyStructTest do
       assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) ==
                {:ok, %{a: %{b: 2, b_text: 250}, c: 1234}}
     end
+
+    test "nested has_one ( has_one has_one)" do
+      d_schema = %{
+        :text => {:d_text, :field, fn s -> {:ok, String.to_integer(s)} end, []}
+      }
+
+      b_schema = %{
+        :text => {:b_text, :field, fn s -> {:ok, String.trim(s)} end, []},
+        {:attr, "attr"} => {:b, :field, fn s -> {:ok, String.to_integer(s)} end, []},
+        "D" => {:d, :has_one, {%{}, d_schema}, []}
+      }
+
+      schema = %{
+        "A" =>
+          {%{},
+           %{
+             "B" => {:a, :has_one, {%{}, b_schema}, []},
+             "C" => %{:text => {:c, :field, fn s -> {:ok, String.to_integer(s)} end, []}}
+           }}
+      }
+
+      xml = """
+      <A attr=\"1\">
+        <B attr=\"2\">
+          <D>100</D>
+            250
+        </B>
+        <C>1234</C>
+      </A>
+      """
+
+      assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) ==
+               {:ok, %{a: %{b: 2, d: %{d_text: 100}, b_text: "250"}, c: 1234}}
+    end
   end
 
   describe "rest " do
