@@ -87,6 +87,8 @@ defmodule DataSchema.XML.Saxy do
             Map.get(child_schema, {:attr, attr}, false)
           end)
 
+        # This is probably fucking crazy and way more complicated than it needs to be
+        # but I can't think about it right now.
         seen =
           case seen do
             [] ->
