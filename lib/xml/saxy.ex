@@ -32,14 +32,8 @@ defmodule DataSchema.XML.Saxy do
     {:ok, {schemas, [{:skip, count + 1, tag_name} | stack], seen}}
   end
 
-  def handle_event(:start_element, element, {_, [{:skip, _, _} | _], seen} = state) do
-    {tage_nane, _} = element
-
-    if Map.get(seen, tage_nane) do
-      {:stop, {:error, "Saw many expected one!"}}
-    else
-      {:ok, state}
-    end
+  def handle_event(:start_element, _element, {_, [{:skip, _, _} | _], seen} = state) do
+    {:ok, state}
   end
 
   # so we need a map of visited nodes, how do we ensure it's not _all_ nodes?
@@ -50,7 +44,13 @@ defmodule DataSchema.XML.Saxy do
 
     case Map.pop(unwrap_schema(current_schema), tag_name, :not_found) do
       {:not_found, _} ->
-        {:ok, {schemas, [{:skip, 0, tag_name} | stack], seen}}
+        case seen do
+          [{^tag_name, current_seen} | _rest_seen] ->
+            {:stop, {:error, "Saw many expected one!"}}
+
+          _ ->
+            {:ok, {schemas, [{:skip, 0, tag_name} | stack], seen}}
+        end
 
       {{:all, child_schema}, sibling_schema} ->
         case stack do
@@ -87,10 +87,19 @@ defmodule DataSchema.XML.Saxy do
             Map.get(child_schema, {:attr, attr}, false)
           end)
 
+        seen =
+          case seen do
+            [] ->
+              [{tag_name, %{}}]
+
+            [{parent_tag, current_seen} | rest_seen] ->
+              [{tag_name, %{}}, {parent_tag, Map.put(current_seen, tag_name, true)} | rest_seen]
+          end
+
         # Do we put it in here? we only need siblings?
         tag = {tag_name, attributes, []}
         schemas = [child_schema, sibling_schema | rest_schemas]
-        {:ok, {schemas, [tag | stack], Map.put(seen, tag_name, true)}}
+        {:ok, {schemas, [tag | stack], seen}}
     end
   end
 
@@ -126,7 +135,22 @@ defmodule DataSchema.XML.Saxy do
         element_name,
         {schemas, [{:skip, 0, element_name} | stack], seen}
       ) do
-    {:ok, {schemas, stack, seen}}
+    # We need to remove ONLY when we are closing the parent of this tag.
+    # how do we track parent. We have to put it into the stack somewhere.
+
+    case seen do
+      [] ->
+        {:ok, {schemas, stack, seen}}
+
+      # This means we are closing the parent... In which case we can pop it off the stack.
+      [{^element_name, seen_children} | rest_seen] ->
+        {:ok, {schemas, stack, rest_seen}}
+
+      # This means we are not closing the parent.. So then what. do nothing? it's already
+      # in the parent when we open the tag.
+      [{parent_tag, seen_children} | rest_seen] ->
+        {:ok, {schemas, stack, rest_seen}}
+    end
   end
 
   def handle_event(
@@ -168,7 +192,7 @@ defmodule DataSchema.XML.Saxy do
   defp unwrap_schema(%{} = schema), do: schema
 
   def parse_string(data, schema) do
-    state = {[schema], [], %{}}
+    state = {[schema], [], []}
 
     case Saxy.parse_string(data, __MODULE__, state, []) do
       # the problem is the state now looks like the top level tuple in simple form

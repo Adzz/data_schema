@@ -685,5 +685,54 @@ defmodule DataSchema.XML.SaxyTest do
 
       assert DataSchema.XML.Saxy.parse_string(xml, schema) == {:error, "Saw many expected one!"}
     end
+
+    test "multiple results error but when the names are repeated at different levels" do
+      schema = %{
+        "A" => %{
+          "C" => %{
+            "G" => %{:text => true, {:attr, "attr"} => true}
+          }
+        }
+      }
+
+      xml = """
+      <A>
+        <C>
+         <C />
+          <G attr="g wizz 1"><C/></G>
+        </C>
+        <C><G attr="g wizz 2"></G></C>
+        <C><B>this is b</B></C>
+        <C><G attr="g wizz 3"></G></C>
+        <C><G attr="g wizz 4"></G></C>
+      </A>
+      """
+
+      assert DataSchema.XML.Saxy.parse_string(xml, schema) == {:error, "Saw many expected one!"}
+    end
+
+    test "doesn't error when there are not multiple " do
+      schema = %{
+        "A" => %{
+          "C" => %{
+            "G" => %{:text => true, {:attr, "attr"} => true}
+          }
+        }
+      }
+
+      xml = """
+      <A>
+        <B />
+        <B />
+        <C>
+          <G attr="g wizz 1"></G>
+          <G attr="g wizz 2"></G>
+        </C>
+        <B />
+      </A>
+      """
+
+      assert DataSchema.XML.Saxy.parse_string(xml, schema) == {:error, "Saw many expected one!"}
+    end
   end
 end
