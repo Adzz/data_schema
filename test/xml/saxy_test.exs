@@ -663,5 +663,27 @@ defmodule DataSchema.XML.SaxyTest do
                  ]
                }
     end
+
+    test "when the path says one but there are many we error?" do
+      schema = %{
+        "A" => %{
+          "C" => %{
+            "G" => %{:text => true, {:attr, "attr"} => true}
+          }
+        }
+      }
+
+      xml = """
+      <A>
+        <C><G attr="g wizz 1"></G></C>
+        <C><G attr="g wizz 2"></G></C>
+        <C><B>this is b</B></C>
+        <C><G attr="g wizz 3"></G></C>
+        <C><G attr="g wizz 4"></G></C>
+      </A>
+      """
+
+      assert DataSchema.XML.Saxy.parse_string(xml, schema) == {:error, "Saw many expected one!"}
+    end
   end
 end
