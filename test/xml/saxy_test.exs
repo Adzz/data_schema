@@ -683,7 +683,8 @@ defmodule DataSchema.XML.SaxyTest do
       </A>
       """
 
-      assert DataSchema.XML.Saxy.parse_string(xml, schema) == {:error, "Saw many expected one!"}
+      assert DataSchema.XML.Saxy.parse_string(xml, schema) ==
+               {:error, "Saw many C's expected one!"}
     end
 
     test "multiple results error but when the names are repeated at different levels" do
@@ -708,7 +709,8 @@ defmodule DataSchema.XML.SaxyTest do
       </A>
       """
 
-      assert DataSchema.XML.Saxy.parse_string(xml, schema) == {:error, "Saw many expected one!"}
+      assert DataSchema.XML.Saxy.parse_string(xml, schema) ==
+               {:error, "Saw many C's expected one!"}
     end
 
     test "doesn't error when there are not multiple " do
@@ -726,13 +728,34 @@ defmodule DataSchema.XML.SaxyTest do
         <B />
         <C>
           <G attr="g wizz 1"></G>
-          <G attr="g wizz 2"></G>
         </C>
         <B />
       </A>
       """
 
-      assert DataSchema.XML.Saxy.parse_string(xml, schema) == {:error, "Saw many expected one!"}
+      assert DataSchema.XML.Saxy.parse_string(xml, schema) ==
+               {:ok, {"A", [], [{"C", [], [{"G", [{"attr", "g wizz 1"}], []}]}]}}
+    end
+
+    test "repeated with a gap in between still errors" do
+      schema = %{
+        "A" => %{
+          "C" => %{
+            "G" => %{:text => true, {:attr, "attr"} => true}
+          }
+        }
+      }
+
+      xml = """
+      <A>
+        <C><G attr="g wizz 1"></G></C>
+        <D />
+        <C><G attr="g wizz 4"></G></C>
+      </A>
+      """
+
+      assert DataSchema.XML.Saxy.parse_string(xml, schema) ==
+               {:error, "Saw many C's expected one!"}
     end
   end
 end

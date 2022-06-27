@@ -19,37 +19,35 @@ defmodule DataSchema.XML.Saxy do
   # we close the skipped element and the count is 0.
   # An alternative would be to add a {:skipped  tuple for every nested duplicate tag but I
   # think this would be a larger memory footprint as a tuple > an int.
-
-  # do we need to add "seen" to state? Seems wasteful! more memory surely.
-
   def handle_event(
         :start_element,
         {tag_name, _},
-        {schemas, [{:skip, count, tag_name} | stack], seen}
+        {schemas, [{:skip, count, tag_name} | stack]}
       ) do
-    # If we are seeing a node again then we must have already done the check the first time
-    # so we don't need to check "seen" again.
-    {:ok, {schemas, [{:skip, count + 1, tag_name} | stack], seen}}
+    {:ok, {schemas, [{:skip, count + 1, tag_name} | stack]}}
   end
 
-  def handle_event(:start_element, _element, {_, [{:skip, _, _} | _], seen} = state) do
+  def handle_event(:start_element, _element, {_, [{:skip, _, _} | _]} = state) do
     {:ok, state}
   end
 
-  # so we need a map of visited nodes, how do we ensure it's not _all_ nodes?
-  # only needs to be the has_ones tbh - ie non `{:all}`
-
-  def handle_event(:start_element, {tag_name, attributes}, {schemas, stack, seen}) do
+  def handle_event(:start_element, {tag_name, attributes}, {schemas, stack}) do
     [current_schema | rest_schemas] = schemas
 
     case Map.pop(unwrap_schema(current_schema), tag_name, :not_found) do
       {:not_found, _} ->
-        case seen do
-          [{^tag_name, current_seen} | _rest_seen] ->
-            {:stop, {:error, "Saw many expected one!"}}
+        with [{_, _, children} | _] <- stack,
+             true <- List.keymember?(children, tag_name, 0) do
+          {:stop, {:error, "Saw many #{tag_name}'s expected one!"}}
+        else
+          # If the stack is empty and we are skipping that means we have skipped the root
+          # node, and therefore the whole document. So we can stop parsing immediately as
+          # we know the values we want are not here!
+          [] ->
+            {:stop, {:error, :not_found}}
 
-          _ ->
-            {:ok, {schemas, [{:skip, 0, tag_name} | stack], seen}}
+          false ->
+            {:ok, {schemas, [{:skip, 0, tag_name} | stack]}}
         end
 
       {{:all, child_schema}, sibling_schema} ->
@@ -63,7 +61,7 @@ defmodule DataSchema.XML.Saxy do
               end)
 
             tag = {tag_name, attributes, []}
-            {:ok, {schemas, [tag | stack], seen}}
+            {:ok, {schemas, [tag | stack]}}
 
           [{_parent_tag, _, _} | _] ->
             attributes =
@@ -78,7 +76,7 @@ defmodule DataSchema.XML.Saxy do
               Map.put(sibling_schema, tag_name, {:all, child_schema}) | rest_schemas
             ]
 
-            {:ok, {schemas, [tag | stack], seen}}
+            {:ok, {schemas, [tag | stack]}}
         end
 
       {child_schema, sibling_schema} ->
@@ -87,29 +85,18 @@ defmodule DataSchema.XML.Saxy do
             Map.get(child_schema, {:attr, attr}, false)
           end)
 
-        # This is probably fucking crazy and way more complicated than it needs to be
-        # but I can't think about it right now.
-        seen =
-          case seen do
-            [] ->
-              [{tag_name, %{}}]
-
-            [{parent_tag, current_seen} | rest_seen] ->
-              [{tag_name, %{}}, {parent_tag, Map.put(current_seen, tag_name, true)} | rest_seen]
-          end
-
         # Do we put it in here? we only need siblings?
         tag = {tag_name, attributes, []}
         schemas = [child_schema, sibling_schema | rest_schemas]
-        {:ok, {schemas, [tag | stack], seen}}
+        {:ok, {schemas, [tag | stack]}}
     end
   end
 
-  def handle_event(:characters, _element, {_, [{:skip, _, _} | _], _seen} = state) do
+  def handle_event(:characters, _element, {_, [{:skip, _, _} | _]} = state) do
     {:ok, state}
   end
 
-  def handle_event(:characters, chars, {schemas, stack, seen} = state) do
+  def handle_event(:characters, chars, {schemas, stack} = state) do
     [current_schema | _rest_schemas] = schemas
 
     case Map.get(unwrap_schema(current_schema), :text, :not_found) do
@@ -119,58 +106,39 @@ defmodule DataSchema.XML.Saxy do
       true ->
         [{tag_name, attributes, content} | stack] = stack
         current = {tag_name, attributes, [chars | content]}
-        {:ok, {schemas, [current | stack], seen}}
+        {:ok, {schemas, [current | stack]}}
     end
   end
 
-  def handle_event(:cdata, chars, {schemas, stack, seen}) do
+  def handle_event(:cdata, chars, {schemas, stack}) do
     [{tag_name, attributes, content} | stack] = stack
     # We probably want to like parse the cdata... But leave like this for now.
     # We also want to only add it if it's in the schema, but until we have a c-data example
     # let's just always include it and see how we need to handle it later.
     current = {tag_name, attributes, [{:cdata, chars} | content]}
-    {:ok, {schemas, [current | stack], seen}}
+    {:ok, {schemas, [current | stack]}}
+  end
+
+  def handle_event(:end_element, element_name, {schemas, [{:skip, 0, element_name} | stack]}) do
+    {:ok, {schemas, stack}}
   end
 
   def handle_event(
         :end_element,
         element_name,
-        {schemas, [{:skip, 0, element_name} | stack], seen}
+        {schemas, [{:skip, count, element_name} | stack]}
       ) do
-    # We need to remove ONLY when we are closing the parent of this tag.
-    # how do we track parent. We have to put it into the stack somewhere.
-
-    case seen do
-      [] ->
-        {:ok, {schemas, stack, seen}}
-
-      # This means we are closing the parent... In which case we can pop it off the stack.
-      [{^element_name, seen_children} | rest_seen] ->
-        {:ok, {schemas, stack, rest_seen}}
-
-      # This means we are not closing the parent.. So then what. do nothing? it's already
-      # in the parent when we open the tag.
-      [{parent_tag, seen_children} | rest_seen] ->
-        {:ok, {schemas, stack, rest_seen}}
-    end
+    {:ok, {schemas, [{:skip, count - 1, element_name} | stack]}}
   end
 
-  def handle_event(
-        :end_element,
-        element_name,
-        {schemas, [{:skip, count, element_name} | stack], seen}
-      ) do
-    {:ok, {schemas, [{:skip, count - 1, element_name} | stack], seen}}
-  end
-
-  def handle_event(:end_element, _element_name, {_schemas, [{:skip, _, _} | _], _seen} = state) do
+  def handle_event(:end_element, _element_name, {_schemas, [{:skip, _, _} | _]} = state) do
     {:ok, state}
   end
 
   def handle_event(
         :end_element,
         tag_name,
-        {schemas, [{tag_name, attributes, content} | stack], seen}
+        {schemas, [{tag_name, attributes, content} | stack]}
       ) do
     current = {tag_name, attributes, Enum.reverse(content)}
     [_current_schema | rest_schemas] = schemas
@@ -182,7 +150,7 @@ defmodule DataSchema.XML.Saxy do
       [parent | rest] ->
         {parent_tag_name, parent_attributes, parent_content} = parent
         parent = {parent_tag_name, parent_attributes, [current | parent_content]}
-        {:ok, {rest_schemas, [parent | rest], seen}}
+        {:ok, {rest_schemas, [parent | rest]}}
     end
   end
 
@@ -194,15 +162,9 @@ defmodule DataSchema.XML.Saxy do
   defp unwrap_schema(%{} = schema), do: schema
 
   def parse_string(data, schema) do
-    state = {[schema], [], []}
+    state = {[schema], []}
 
     case Saxy.parse_string(data, __MODULE__, state, []) do
-      # the problem is the state now looks like the top level tuple in simple form
-      # what we are trying to catch is when we have skipped everything so are returned
-      # a schema and an empty stack.
-      {:ok, {[^schema], [], _}} ->
-        {:error, :not_found}
-
       {:ok, {:error, _reason} = error} ->
         error
 

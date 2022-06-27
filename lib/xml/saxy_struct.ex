@@ -4,6 +4,14 @@ defmodule DataSchema.XML.SaxyStruct do
   that appear in a data schema. It builds a simple form representation of the XML, but
   only puts in elements and attributes that exist in a schema. Check the tests for examples
   of what the schema should look like (it should be a tree that mirrors the structure).
+
+
+  Is there value in the casted simple form? I think it would mean failing earlier which
+  could be good if you could then point to the exact tag etc that failed. You;d be able to
+  point to the tag but not the exact spot, like Nth Offer or whatever. At least not without
+  more overhead. Whereas the errors when casting can at least point to the specific field.
+
+
   """
 
   @behaviour Saxy.Handler
@@ -27,12 +35,44 @@ defmodule DataSchema.XML.SaxyStruct do
     {:ok, state}
   end
 
-  def handle_event(:start_element, {tag_name, attributes}, {schemas, stack}) do
+  def handle_event(:start_element, {tag_name, attributes}, {schemas, stack} = s) do
     [current_schema | rest_schemas] = schemas
 
     case Map.pop(unwrap_schema(current_schema), tag_name, :not_found) do
       {:not_found, _} ->
-        {:ok, {schemas, [{:skip, 0, tag_name} | stack]}}
+
+        # RIGHT the tricky bit then is that now the acc is a map. So we need parent key
+        # AND the current so that we can access the right map.. Unless we like use
+        # Map.values..
+        s|> IO.inspect(limit: :infinity, label: "STATE")
+        [head | _] = stack
+        stack |> IO.inspect(limit: :infinity, label: "hd")
+        tag_name |> IO.inspect(limit: :infinity, label: "TAG")
+        # What are values going to be ? is it all siblings
+        Map.values(head) |> IO.inspect(limit: :infinity, label: "values")
+
+        # We have to know different things for different fields I think. for has_one you
+        # need the parent key AND you need to be able to pair the tag name to that...
+        # For field you need to be able to pair the tag name to the key in the acc...
+
+        # We can't use the same trick without storing more state because the output no
+        # longer corresponds to the input. We could keep the schemas that we are done with.
+        # we could add in the "seen" list again... would that do it? I think that's the
+        # only way...
+
+        with [{_, _, children} | _] <- stack,
+             true <- List.keymember?(children, tag_name, 0) do
+          {:stop, {:error, "Saw many #{tag_name}'s expected one!"}}
+        else
+          # If the stack is empty and we are skipping that means we have skipped the root
+          # node, and therefore the whole document. So we can stop parsing immediately as
+          # we know the values we want are not here!
+          [] ->
+            {:stop, {:error, :not_found}}
+
+          false ->
+            {:ok, {schemas, [{:skip, 0, tag_name} | stack]}}
+        end
 
       {{acc, {:all, child_schema}}, sibling_schema} ->
         case stack do
@@ -105,9 +145,6 @@ defmodule DataSchema.XML.SaxyStruct do
     {:ok, state}
   end
 
-  # def handle_event(:characters, chars, {schemas, [ | rest_stack]} = state) do
-  # end
-
   def handle_event(:characters, chars, {schemas, stack} = state) do
     [current_schema | _rest_schemas] = schemas
 
@@ -178,14 +215,10 @@ defmodule DataSchema.XML.SaxyStruct do
     {:ok, state}
   end
 
-  # defp unwrap_schema({_acc, {:all, schema}}), do: schema
   defp unwrap_schema({:all, schema}), do: schema
-  # defp unwrap_schema({_acc,  schema}), do: schema
   defp unwrap_schema(%{} = schema), do: schema
 
   def parse_string(data, schema) do
-    # TODO: once it all works make this a tuple instead of a map for perf.
-    # benchmark both approaches.
     state = {[schema], [%{}]}
 
     case Saxy.parse_string(data, __MODULE__, state, []) do
@@ -244,9 +277,6 @@ defmodule DataSchema.XML.SaxyStruct do
         raise DataSchema.InvalidCastFunction, message: message
     end
   end
-
-  # defp accumulator({_parent_tag, _parent_key, :has_one, acc, _opts}), do: acc
-  # defp accumulator(%{} = acc), do: acc
 
   defp update_accumulator({parent_tag, parent_key, :has_one, acc, opts}, key, value) do
     updated = update_accumulator(acc, key, value)

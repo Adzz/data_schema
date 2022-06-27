@@ -37,7 +37,19 @@ defmodule DataSchema.XML.CastedSimpleForm do
 
     case Map.pop(unwrap_schema(current_schema), tag_name, :not_found) do
       {:not_found, _} ->
-        {:ok, {schemas, [{:skip, 0, tag_name} | stack]}}
+        with [{_, _, children} | _] <- stack,
+             true <- List.keymember?(children, tag_name, 0) do
+          {:stop, {:error, "Saw many #{tag_name}'s expected one!"}}
+        else
+          # If the stack is empty and we are skipping that means we have skipped the root
+          # node, and therefore the whole document. So we can stop parsing immediately as
+          # we know the values we want are not here!
+          [] ->
+            {:stop, {:error, :not_found}}
+
+          false ->
+            {:ok, {schemas, [{:skip, 0, tag_name} | stack]}}
+        end
 
       {{:all, child_schema}, sibling_schema} ->
         case stack do
@@ -151,21 +163,17 @@ defmodule DataSchema.XML.CastedSimpleForm do
   defp unwrap_schema(%{} = schema), do: schema
 
   def parse_string(data, schema) do
-    # TODO: once it all works make this a tuple instead of a map for perf.
-    # benchmark both approaches.
     state = {[schema], []}
 
     case Saxy.parse_string(data, __MODULE__, state, []) do
       {:ok, {:error, _reason} = error} ->
         error
 
-      # If we are returned an empty stack that means nothing in the XML was in the schema.
-      # If we found even one thing we would be returned a simple form node.
-      {:ok, {_, []}} ->
-        {:error, :not_found}
+      {:ok, simple_form} ->
+        {:ok, simple_form}
 
-      {:ok, struct} ->
-        {:ok, struct}
+      {:error, _reason} = error ->
+        error
     end
   end
 

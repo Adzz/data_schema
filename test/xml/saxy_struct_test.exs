@@ -221,22 +221,27 @@ defmodule DataSchema.XML.SaxyStructTest do
                {:ok, %{a: %{b: 2, d: %{d_text: 100}, b_text: "250"}, c: 1234}}
     end
 
-    # this is making me thing that getting feature parity could be... complex. And
-    # for what? Most of the gain is in having a reduced simple form. So I think the
-    # actual benefit is in creating a reduced simple form representatino... Less memory
-    # and faster querying.
-
-    # to do this though we need to keep a stack of the "seen" has_one tags and its parent
-    # then we remove whenever we close the parent. I think we only have to check when we
-    # are skipping, because if we hit a repeated tag it wont be in the schema anymore.
-    # So it's guaranteed to be "skipped". That narrows down the choice.
-
-    # So the choice is check every time or don't have the check?
-
-    # We could also instead treat everything as an {:all} and then fail later - either
-    # when we query or when we collapse into parent for straight to struct...
     test "has_one - when there are many of them we error" do
-      #
+      b_schema = %{{:attr, "attr"} => {:b, :field, fn s -> {:ok, String.to_integer(s)} end, []}}
+
+      schema = %{
+        "A" =>
+          {%{},
+           %{
+             "B" => {:a, :has_one, {%{}, b_schema}, []},
+             "C" => %{:text => {:c, :field, fn s -> {:ok, String.to_integer(s)} end, []}}
+           }}
+      }
+
+      xml = """
+      <A attr=\"1\">
+        <C>1234</C>
+
+        <B attr=\"2\">250</B>
+        <B attr=\"2\">250</B>
+      </A>
+      """
+      assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) == {:ok, %{a: %{b: 2}, c: 1234}}
     end
   end
 
