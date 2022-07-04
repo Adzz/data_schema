@@ -66,6 +66,12 @@ defmodule Expand do
             [{path ++ p, modifier} | accu]
         end)
 
+      {:aggregate, {_key, child_fields, _cast_fn}}, acc ->
+        paths(child_fields, acc)
+
+      {:aggregate, {_key, child_fields, _cast_fn, _opts}}, acc ->
+        paths(child_fields, acc)
+
       {_field, {_key, path, _cast_fn}}, acc ->
         [path | acc]
 
@@ -76,6 +82,8 @@ defmodule Expand do
 end
 
 paths = Expand.paths(fields, [])
+
+# File.write!(Path.expand("./simple_thing.ex"), inspect(paths, limit: :infinity))
 ```
 
 ```elixir
@@ -130,11 +138,8 @@ defmodule Tree do
         |> dedup_path([])
         # |> IO.inspect(label: :deduped)
         |> Enum.reduce(leaf, fn
-          {:all, key}, accu ->
-            %{key => {:all, accu}}
-
-          key, accu ->
-            %{key => accu}
+          {:all, key}, accu -> %{key => {:all, accu}}
+          key, accu -> %{key => accu}
         end)
 
       MapUtils.deep_merge(acc, map)
@@ -169,12 +174,12 @@ defmodule Tree do
   end
 
   def dedup_path([head, next | rest], acc) do
+    dedup_path([next | rest], [head | acc])
   end
 end
 
-schema =
-  Tree.create(sorted)
-  |> IO.inspect(limit: :infinity)
+schema = Tree.create(sorted)
+File.write!(Path.expand("./schmema.ex"), inspect(schema, limit: :infinity))
 ```
 
 ```elixir
@@ -183,6 +188,10 @@ large_xml = File.read!("/Users/Adz/Projects/data_schema/large.xml")
 {:ok, simple} = DataSchema.XML.Saxy.parse_string(large_xml, schema)
 
 File.write!(Path.expand("./simple_thing.ex"), inspect(simple, limit: :infinity))
+Code.format_file!(Path.expand("./simple_thing.ex"))
 # simple |> IO.inspect(limit: :infinity, printable_limit: :infinity)
-DataSchema.to_struct(simple, Duffel.Link.XMLParsing.Lufthansa.AirShopping)
+{:ok, struct} = DataSchema.to_struct(simple, Duffel.Link.XMLParsing.Lufthansa.AirShopping)
+
+# File.write!(Path.expand("./struct_res.ex"), struct)
+# Code.format_file!(Path.expand("./struct_res.ex"))
 ```

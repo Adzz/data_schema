@@ -293,7 +293,7 @@ schema = %{
 xml = File.read!(Path.expand("./large.xml"))
 
 
-struct_schema =
+struct_schema = %{}
 
 Benchee.run(
   %{
