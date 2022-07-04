@@ -91,7 +91,7 @@ normal simpleform               15.25 M - 1.03x reduction count +0.46 M
 
 ### Skipping even more
 
-We only parse response sid and warnings:
+When we only parse response_sid and warnings:
 
 ```sh
 
@@ -122,4 +122,49 @@ normal simpleform               15.24 M     ±0.07%        15.24 M        15.26 
 Comparison:
 Slimmed down simpleform         14.78 M
 normal simpleform               15.24 M - 1.03x reduction count +0.46 M
+```
+
+This is with:
+
+```elixir
+  xml_schema(
+    field: {:response_sid, {@base_path ++ ["ShoppingResponseID", "ResponseID"], :text}, StringType, optional?: true},
+    has_many: {:journeys, @base_path ++ ["DataLists", "FlightList", {:all, "Flight"}], Journey, optional?: true},
+    has_many: {:passengers, @base_path ++ ["DataLists", "PassengerList", {:all, "Passenger"}], Passenger, optional?: true},
+    has_many: {:errors, @base_path ++ ["Errors", {:all, "Error"}], Error, optional?: true},
+    has_many: {:warnings, @base_path ++ ["Warnings", {:all, "Warning"}], Warning, optional?: true},
+  )
+```
+
+```sh
+Benchmarking Slimmed down simpleform ...
+Benchmarking normal simpleform ...
+
+Name                              ips        average  deviation         median         99th %
+Slimmed down simpleform          4.68      213.70 ms     ±1.04%      213.95 ms      218.28 ms
+normal simpleform                2.54      394.39 ms     ±1.85%      393.46 ms      417.58 ms
+
+Comparison:
+Slimmed down simpleform          4.68
+normal simpleform                2.54 - 1.85x slower +180.69 ms
+
+Memory usage statistics:
+
+Name                            average  deviation         median         99th %
+Slimmed down simpleform        85.58 MB     ±0.00%       85.58 MB       85.58 MB
+normal simpleform             171.28 MB     ±0.00%      171.28 MB      171.28 MB
+
+Comparison:
+Slimmed down simpleform        85.58 MB
+normal simpleform             171.28 MB - 2.00x memory usage +85.70 MB
+
+Reduction count statistics:
+
+Name                            average  deviation         median         99th %
+Slimmed down simpleform         14.71 M     ±0.00%        14.71 M        14.71 M
+normal simpleform               15.24 M     ±0.09%        15.24 M        15.27 M
+
+Comparison:
+Slimmed down simpleform         14.71 M
+normal simpleform               15.24 M - 1.04x reduction count +0.54 M
 ```

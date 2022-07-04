@@ -39,67 +39,67 @@ defmodule Duffel.Link.XMLParsing.Lufthansa.AirShopping do
     field:
       {:response_sid, {@base_path ++ ["ShoppingResponseID", "ResponseID"], :text}, StringType,
        optional?: true},
-    # has_many:
-    #   {:baggage_allowances,
-    #    @base_path ++ ["DataLists", "BaggageAllowanceList", {:all, "BaggageAllowance"}],
-    #    BaggageAllowance, optional?: true},
-    # has_many: {:currency_metadata, @currency_metadata_path, CurrencyMetadata, optional?: true},
-    # has_many: {:fare_groups, @fare_group_path, FareGroup, optional?: true},
-    # has_many:
-    #   {:journeys, @base_path ++ ["DataLists", "FlightList", {:all, "Flight"}], Journey,
-    #    optional?: true},
-    # has_many:
-    #   {:offers, @base_path ++ ["OffersGroup", "AirlineOffers", {:all, "Offer"}], Offer,
-    #    optional?: true},
-    # has_many:
-    #   {:origin_destinations,
-    #    @base_path ++ ["DataLists", "OriginDestinationList", {:all, "OriginDestination"}],
-    #    OriginDestination, optional?: true},
-    # has_many:
-    #   {:passengers, @base_path ++ ["DataLists", "PassengerList", {:all, "Passenger"}], Passenger,
-    #    optional?: true},
-    # has_many:
-    #   {:rule_metadata,
-    #    @base_path ++
-    #      [
-    #        "Metadata",
-    #        "Other",
-    #        {:all, "OtherMetadata"},
-    #        "RuleMetadatas",
-    #        {:all, "RuleMetadata"}
-    #      ], RuleMetadata, optional?: true},
-    # has_many: {:errors, @base_path ++ ["Errors", {:all, "Error"}], Error, optional?: true},
+    has_many:
+      {:baggage_allowances,
+       @base_path ++ ["DataLists", "BaggageAllowanceList", {:all, "BaggageAllowance"}],
+       BaggageAllowance, optional?: true},
+    has_many: {:currency_metadata, @currency_metadata_path, CurrencyMetadata, optional?: true},
+    has_many: {:fare_groups, @fare_group_path, FareGroup, optional?: true},
+    has_many:
+      {:journeys, @base_path ++ ["DataLists", "FlightList", {:all, "Flight"}], Journey,
+       optional?: true},
+    has_many:
+      {:offers, @base_path ++ ["OffersGroup", "AirlineOffers", {:all, "Offer"}], Offer,
+       optional?: true},
+    has_many:
+      {:origin_destinations,
+       @base_path ++ ["DataLists", "OriginDestinationList", {:all, "OriginDestination"}],
+       OriginDestination, optional?: true},
+    has_many:
+      {:passengers, @base_path ++ ["DataLists", "PassengerList", {:all, "Passenger"}], Passenger,
+       optional?: true},
+    has_many:
+      {:rule_metadata,
+       @base_path ++
+         [
+           "Metadata",
+           "Other",
+           {:all, "OtherMetadata"},
+           "RuleMetadatas",
+           {:all, "RuleMetadata"}
+         ], RuleMetadata, optional?: true},
+    has_many: {:errors, @base_path ++ ["Errors", {:all, "Error"}], Error, optional?: true},
     has_many:
       {:warnings, @base_path ++ ["Warnings", {:all, "Warning"}], Warning, optional?: true},
-    # has_many:
-    #   {:service_definitions,
-    #    @base_path ++ ["DataLists", "ServiceDefinitionList", {:all, "ServiceDefinition"}],
-    #    ServiceDefinition, optional?: true},
-    # has_many: {
-    #   :price_classes,
-    #   @base_path ++ ["DataLists", "PriceClassList", {:all, "PriceClass"}],
-    #   PriceClass,
-    #   optional?: true
-    # },
-    # has_many: {
-    #   :segments,
-    #   @base_path ++ ["DataLists", "FlightSegmentList", {:all, "FlightSegment"}],
-    #   Segment,
-    #   optional?: true
-    # },
-    # has_many: {
-    #   :combinability_rules,
-    #   @base_path ++
-    #     [
-    #       "Metadata",
-    #       "Shopping",
-    #       "ShopMetadataGroup",
-    #       "Offer",
-    #       "OfferInstructionMetadatas",
-    #       {:all, "OfferInstructionMetadata"}
-    #     ],
-    #   CombinabilityRule,
-    #   optional?: true
-    # }
+    has_many:
+      {:service_definitions,
+       @base_path ++ ["DataLists", "ServiceDefinitionList", {:all, "ServiceDefinition"}],
+       ServiceDefinition, optional?: true},
+    has_many: {
+      :price_classes,
+      @base_path ++ ["DataLists", "PriceClassList", {:all, "PriceClass"}],
+      PriceClass,
+      optional?: true
+    },
+    has_many: {
+      :segments,
+      @base_path ++ ["DataLists", "FlightSegmentList", {:all, "FlightSegment"}],
+      Segment,
+      optional?: true
+    },
+    has_many: {
+      :combinability_rules,
+      @base_path ++
+        [
+          "Metadata",
+          "Shopping",
+          "ShopMetadataGroup",
+          "Offer",
+          "OfferInstructionMetadatas",
+          {:all, "OfferInstructionMetadata"}
+        ],
+      CombinabilityRule,
+      optional?: true
+    }
   )
 end
