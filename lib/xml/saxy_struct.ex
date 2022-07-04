@@ -19,7 +19,11 @@ defmodule DataSchema.XML.SaxyStruct do
   # we close the skipped element and the count is 0.
   # An alternative would be to add a {:skipped  tuple for every nested duplicate tag but I
   # think this would be a larger memory footprint as a tuple > an int.
-  def handle_event(:start_element, {tag_name, _}, {schemas, [{:skip, count, tag_name} | stack], seen}) do
+  def handle_event(
+        :start_element,
+        {tag_name, _},
+        {schemas, [{:skip, count, tag_name} | stack], seen}
+      ) do
     {:ok, {schemas, [{:skip, count + 1, tag_name} | stack], seen}}
   end
 
@@ -78,7 +82,9 @@ defmodule DataSchema.XML.SaxyStruct do
 
           with_attributes ->
             schemas = [child_schema, sibling_schema | rest_schemas]
-            {:ok, {schemas, [{tag_name, parent_key, :has_one, with_attributes, opts} | stack], seen}}
+
+            {:ok,
+             {schemas, [{tag_name, parent_key, :has_one, with_attributes, opts} | stack], seen}}
         end
 
       {{acc, child_schema}, sibling_schema} ->
@@ -101,15 +107,17 @@ defmodule DataSchema.XML.SaxyStruct do
             {:stop, error}
 
           with_attributes ->
-                seen =
-          case seen do
-            [] ->
-              [{tag_name, %{}}]
+            seen =
+              case seen do
+                [] ->
+                  [{tag_name, %{}}]
 
-            [{parent_tag, current_seen} | rest_seen] ->
-              [{tag_name, %{}}, {parent_tag, Map.put(current_seen, tag_name, true)} | rest_seen]
-          end
-
+                [{parent_tag, current_seen} | rest_seen] ->
+                  [
+                    {tag_name, %{}},
+                    {parent_tag, Map.put(current_seen, tag_name, true)} | rest_seen
+                  ]
+              end
 
             schemas = [child_schema, sibling_schema | rest_schemas]
             {:ok, {schemas, [with_attributes | rest_stack], seen}}
@@ -173,7 +181,11 @@ defmodule DataSchema.XML.SaxyStruct do
     end
   end
 
-  def handle_event(:end_element, element_name, {schemas, [{:skip, count, element_name} | stack], seen}) do
+  def handle_event(
+        :end_element,
+        element_name,
+        {schemas, [{:skip, count, element_name} | stack], seen}
+      ) do
     {:ok, {schemas, [{:skip, count - 1, element_name} | stack], seen}}
   end
 

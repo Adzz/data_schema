@@ -241,6 +241,7 @@ defmodule DataSchema.XML.SaxyStructTest do
         <B attr=\"2\">250</B>
       </A>
       """
+
       assert DataSchema.XML.SaxyStruct.parse_string(xml, schema) == {:ok, %{a: %{b: 2}, c: 1234}}
     end
   end

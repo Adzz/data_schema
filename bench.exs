@@ -111,10 +111,10 @@ schema = %{
             },
             "Metadata" => %{
               "Other" => %{
-                "OtherMetadata" => %{
+                {:all, "OtherMetadata" => %{
                   "CurrencyMetadatas" => %{},
                   "RuleMetadatas" => %{}
-                }
+                }}
               }
             },
             "OffersGroup" => %{
@@ -292,6 +292,9 @@ schema = %{
 
 xml = File.read!(Path.expand("./large.xml"))
 
+
+struct_schema =
+
 Benchee.run(
   %{
     "keymember" => fn  ->
@@ -299,6 +302,9 @@ Benchee.run(
     end,
     "normal" => fn  ->
       DataSchema.XML.Saxy.parse_string(xml, schema)
+    end,
+    "struct" => fn ->
+      DataSchema.XML.SaxyStruct.parse_string(xml, struct_schema)
     end
   },
   parallel: 5,
