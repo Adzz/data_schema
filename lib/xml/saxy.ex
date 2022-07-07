@@ -38,6 +38,7 @@ defmodule DataSchema.XML.Saxy do
       {:not_found, _} ->
         with [{_, _, children} | _] <- stack,
              true <- List.keymember?(children, tag_name, 0) do
+          # Make this an actual PathError and then bench when we hit it.
           {:stop, {:error, "Saw many #{tag_name}'s expected one!"}}
         else
           # If the stack is empty and we are skipping that means we have skipped the root

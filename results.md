@@ -1,6 +1,5 @@
 # Slimmed Vs not
 
-
 ## When using the full schema - ie basically all the XML
 
 ```sh

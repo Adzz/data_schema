@@ -152,6 +152,9 @@ end
 
 slimmed_schema = Tree.create(sorted)
 
+# What's better parse from scratch each time you want to pull data out
+# Or parse everything once and then query it with different schemas?
+
 Benchee.run(
   %{
     "normal simpleform" => fn  ->

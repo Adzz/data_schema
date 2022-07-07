@@ -16,11 +16,7 @@ defmodule DataSchema.XML.SaxyTest do
     end
 
     test "when there is lots more XML than things we are querying for..." do
-      schema = %{
-        "A" => %{
-          {:attr, "attr"} => true
-        }
-      }
+      schema = %{"A" => %{{:attr, "attr"} => true } }
 
       xml = """
       <A attr=\"1\">
