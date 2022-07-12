@@ -380,6 +380,12 @@ DataSchema.to_struct(source_data, BlogPost)
 ```
 
 
+## to_runtime_schema/1
+
+Accepts a the module of a compile time schema and will expand it into a runtime schema
+recursively. This can be useful for tooling around generating schemas or for schema
+reflection.
+
 ## to_struct/2
 
 Accepts an data schema module and some source data and attempts to create the struct
