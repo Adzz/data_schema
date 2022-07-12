@@ -57,6 +57,27 @@ defmodule DataSchema.ErrorsTest do
       assert DataSchema.Errors.flatten_errors(error) ==
                {[:comments, :author, :name], "There was an error!"}
     end
+
+    test "four deep" do
+      error = %DataSchema.Errors{
+        errors: [
+          comments: %DataSchema.Errors{
+            errors: [
+              author: %DataSchema.Errors{
+                errors: [
+                  name: %DataSchema.Errors{
+                    errors: [first: "There was an error!"]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      assert DataSchema.Errors.flatten_errors(error) ==
+               {[:comments, :author, :name, :first], "There was an error!"}
+    end
   end
 
   test "has_many has_one" do

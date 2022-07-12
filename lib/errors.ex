@@ -86,17 +86,15 @@ defmodule DataSchema.Errors do
       {[:comments, :author, :name], "There was an error!"}
   """
   def flatten_errors(%__MODULE__{} = error) do
-    flatten_errors(error, {[], ""})
+    {path, error} = do_flatten_errors(error, {[], ""})
+    {Enum.reverse(path), error}
   end
 
   # Because we don't yet "collect" all errors we can ignore rest here and just to DFS.
-  def flatten_errors(%__MODULE__{errors: [head | _rest]}, {path, msg}) do
-    {path, error} =
-      case head do
-        {key, %DataSchema.Errors{} = error} -> flatten_errors(error, {[key | path], msg})
-        {key, error_message} when is_binary(error_message) -> {[key | path], error_message}
-      end
-
-    {Enum.reverse(path), error}
+  defp do_flatten_errors(%__MODULE__{errors: [head | _rest]}, {path, msg}) do
+    case head do
+      {key, %DataSchema.Errors{} = error} -> do_flatten_errors(error, {[key | path], msg})
+      {key, error_message} when is_binary(error_message) -> {[key | path], error_message}
+    end
   end
 end
