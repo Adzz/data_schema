@@ -862,60 +862,50 @@ defmodule DataSchema do
 
   def absolute_paths_for_schema(runtime_schema) when is_list(runtime_schema) do
     runtime_schema
-    |> Enum.reduce([], fn
-      {:has_one, {key, path, {_child_module, child_fields}}}, acc ->
+    |> Enum.reduce(acc, fn
+      {:has_many, {_key, path, {_child_schema, child_fields}, _opts}}, acc ->
         child_fields
-        |> absolute_paths_for_schema()
-        |> Enum.reduce(acc, fn {k, p}, accu ->
-          [{[key] ++ k, path ++ p} | accu]
+        |> absolute_paths_for_schema([])
+        |> Enum.reduce(acc, fn
+          {p, modifier}, accu ->
+            [{path ++ p, modifier} | accu]
         end)
 
-      {:has_one, {key, path, {_child_module, child_fields}, _opts}}, acc ->
+      {:has_many, {_key, path, {_child_schema, child_fields}}}, acc ->
         child_fields
-        |> absolute_paths_for_schema()
-        |> Enum.reduce(acc, fn {k, p}, accu ->
-          [{[key] ++ k, path ++ p} | accu]
+        |> absolute_paths_for_schema([])
+        |> Enum.reduce(acc, fn
+          {p, modifier}, accu ->
+            [{path ++ p, modifier} | accu]
         end)
 
-      {:has_many, {key, path, {_child_module, child_fields}}}, acc ->
+      {:has_one, {_key, path, {_child_schema, child_fields}, _opts}}, acc ->
         child_fields
-        |> absolute_paths_for_schema()
-        |> Enum.reduce(acc, fn {k, p}, accu ->
-          [{[key] ++ k, path ++ p} | accu]
+        |> absolute_paths_for_schema([])
+        |> Enum.reduce(acc, fn
+          {p, modifier}, accu ->
+            [{path ++ p, modifier} | accu]
         end)
 
-      {:has_many, {key, path, {_child_module, child_fields}, _opts}}, acc ->
+      {:has_one, {_key, path, {_child_schema, child_fields}}}, acc ->
         child_fields
-        |> absolute_paths_for_schema()
-        |> Enum.reduce(acc, fn {k, p}, accu ->
-          [{[key] ++ k, path ++ p} | accu]
+        |> absolute_paths_for_schema([])
+        |> Enum.reduce(acc, fn
+          {p, modifier}, accu ->
+            [{path ++ p, modifier} | accu]
         end)
 
-      {:aggregate, {key, child_fields, _cast_fn}}, acc ->
-        child_fields
-        |> absolute_paths_for_schema()
-        |> Enum.reduce(acc, fn {k, p}, accu ->
-          [{[key] ++ k, p} | accu]
-        end)
+      {:aggregate, {_key, child_fields, _cast_fn}}, acc ->
+        absolute_paths_for_schema(child_fields, acc)
 
-      {:aggregate, {key, child_fields, _cast_fn, _opts}}, acc ->
-        child_fields
-        |> absolute_paths_for_schema()
-        |> Enum.reduce(acc, fn {k, p}, accu ->
-          [{[key] ++ k, [p]} | accu]
-        end)
+      {:aggregate, {_key, child_fields, _cast_fn, _opts}}, acc ->
+        absolute_paths_for_schema(child_fields, acc)
 
-      {:list_of, {key, path, _cast_fn}}, acc ->
-        [{[key], [path]} | acc]
+      {_field, {_key, path, _cast_fn}}, acc ->
+        [path | acc]
 
-      {:list_of, {key, path, _cast_fn, _opts}}, acc ->
-        [{[key], [path]} | acc]
-
-      {:field, {key, path, _cast_fn}}, acc ->
-        [{[key], [path]} | acc]
-
-      {:field, {key, path, _cast_fn, _opts}}, acc ->
-        [{[key], [path]} | acc]
+      {_field, {_key, path, _cast_fn, _opts}}, acc ->
+        [path | acc]
     end)
   end
 end
