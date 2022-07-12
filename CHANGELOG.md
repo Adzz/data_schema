@@ -1,6 +1,12 @@
 # Changelog for version 0.2.x
 
-## 0.3.0
+## 0.3.2
+
+### Bug Fix
+
+The `DataSchema.flatten_errors/1` function was erroneously flipping the path to the error. This has now been fixed.
+
+## 0.3.1
 
 ### Improvement
 
