@@ -4,6 +4,18 @@
 
 ### Improvement
 
+This release adds three new public functions:
+
+* `DataSchema.to_runtime_schema/1`
+* `DataSchema.flatten_errors/1`
+* `DataSchema.to_error_tuple/1`
+
+These allow for schema reflection and make working with errors easier.
+
+## 0.3.0
+
+### Improvement
+
 We now handle errors returned from cast functions by returning a `%DataSchema.Errors{}` for them, which will effectively point to the field that error'd. Previously we were only doing that for non null errors for some reason! to_struct now never returns `:error` only.
 
 ## 0.2.9
