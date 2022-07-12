@@ -1,5 +1,6 @@
 defmodule DataSchema.ErrorsTest do
   use ExUnit.Case, async: true
+  doctest DataSchema.Errors
 
   defmodule Author do
     import DataSchema, only: [data_schema: 1]
@@ -18,6 +19,44 @@ defmodule DataSchema.ErrorsTest do
       field: {:content, "content", &{:ok, to_string(&1)}},
       has_many: {:comments, "comments", Comment}
     )
+  end
+
+  describe "to_error_tuple" do
+    test "we convert an error to an error tuple" do
+      error = %DataSchema.Errors{
+        errors: [
+          comments: %DataSchema.Errors{
+            errors: [
+              author: %DataSchema.Errors{
+                errors: [name: "There was an error!"]
+              }
+            ]
+          }
+        ]
+      }
+
+      assert DataSchema.Errors.to_error_tuple(error) ==
+               {:error, {[:comments, :author, :name], "There was an error!"}}
+    end
+  end
+
+  describe "flatten_errors" do
+    test "we flatten the error path" do
+      error = %DataSchema.Errors{
+        errors: [
+          comments: %DataSchema.Errors{
+            errors: [
+              author: %DataSchema.Errors{
+                errors: [name: "There was an error!"]
+              }
+            ]
+          }
+        ]
+      }
+
+      assert DataSchema.Errors.flatten_errors(error) ==
+               {[:comments, :author, :name], "There was an error!"}
+    end
   end
 
   test "has_many has_one" do
