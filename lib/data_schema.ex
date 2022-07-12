@@ -843,7 +843,7 @@ defmodule DataSchema do
   defp call_cast_fn(fun, value) when is_function(fun, 1), do: fun.(value)
 
   @doc """
-       A semi-private function that aims to return a flat list of all of the absolute paths
+       A private function that aims to return a flat list of all of the absolute paths
        in a given schema. This only works if the path is a list though, as would be the case
        if you had an Access data accessor for example. This is useful groundwork for the same
        idea with other paths though - you would just have to modify it slightly I think to get
@@ -861,6 +861,10 @@ defmodule DataSchema do
   end
 
   def absolute_paths_for_schema(runtime_schema) when is_list(runtime_schema) do
+    absolute_paths_for_schema(runtime_schema, [])
+  end
+
+  def absolute_paths_for_schema(runtime_schema, acc) when is_list(runtime_schema) do
     runtime_schema
     |> Enum.reduce(acc, fn
       {:has_many, {_key, path, {_child_schema, child_fields}, _opts}}, acc ->
