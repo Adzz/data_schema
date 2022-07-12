@@ -22,7 +22,6 @@ defmodule DataSchema do
     |> absolute_paths_for_schema()
   end
 
-  # This handles runtime schemas?
   def absolute_paths_for_schema(runtime_schema) when is_list(runtime_schema) do
     runtime_schema
     |> Enum.reduce([], fn
@@ -84,7 +83,8 @@ defmodule DataSchema do
 
   @doc """
   Accepts a the module of a compile time schema and will expand it into a runtime schema
-  recursively.
+  recursively. This can be useful for tooling around generating schemas or for schema
+  reflection.
   """
   def to_runtime_schema(schema) when is_atom(schema) do
     if Code.ensure_loaded?(schema) &&

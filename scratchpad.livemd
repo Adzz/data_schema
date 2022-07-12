@@ -187,11 +187,16 @@ large_xml = File.read!("/Users/Adz/Projects/data_schema/large.xml")
 
 {:ok, simple} = DataSchema.XML.Saxy.parse_string(large_xml, schema)
 
-File.write!(Path.expand("./simple_thing.ex"), inspect(simple, limit: :infinity))
-Code.format_file!(Path.expand("./simple_thing.ex"))
-# simple |> IO.inspect(limit: :infinity, printable_limit: :infinity)
-{:ok, struct} = DataSchema.to_struct(simple, Duffel.Link.XMLParsing.Lufthansa.AirShopping)
+defimpl Inspect, for: Decimal do
+  def inspect(dec, _opts) do
+    "Decimal.new(\"" <> Decimal.to_string(dec) <> "\")"
+  end
+end
 
-# File.write!(Path.expand("./struct_res.ex"), struct)
-# Code.format_file!(Path.expand("./struct_res.ex"))
+# File.write!(Path.expand("./simple_thing.ex"), Macro.to_string(simple))
+
+{:ok, struct} = DataSchema.to_struct(simple, Duffel.Link.XMLParsing.Lufthansa.AirShopping)
+File.write!(Path.expand("./struct_res.ex"), inspect(struct, limit: :infinity))
+Code.format_file!(Path.expand("./struct_res.ex"))
+:ok
 ```
