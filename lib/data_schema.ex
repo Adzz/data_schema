@@ -702,7 +702,7 @@ defmodule DataSchema do
          accessor,
          data
        ) do
-    values = accessor.has_one(data, path)
+    values = accessor.has_many(data, path)
     considered_empty? = values in empty_values
 
     cond do
@@ -737,23 +737,30 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:has_many, {field, path, cast_module, %{optional?: optional?, empty_values: _empty_values}}},
+         {:has_many,
+          {field, path, cast_module, %{optional?: optional?, empty_values: empty_values}}},
          struct,
          accessor,
          data
        ) do
-    case accessor.has_many(data, path) do
-      nil ->
-        if optional? do
-          {:cont, update_struct(struct, field, nil)}
-        else
-          {:halt, {:error, DataSchema.Errors.null_error(field)}}
-        end
+    values = accessor.has_many(data, path)
+    considered_empty? = values in empty_values
 
-      data ->
-        data
+    cond do
+      considered_empty? and not optional? ->
+        {:halt, {:error, DataSchema.Errors.null_error(field)}}
+
+      considered_empty? and optional? ->
+        {:cont, update_struct(struct, field, values)}
+
+      true ->
+        values
         |> Enum.reduce_while([], fn datum, acc ->
           # It's not possible for to_struct to return nil so we don't worry about it here.
+          # Should we use the parent data accessor or should we require that the struct
+          # defines one?
+          # using the parent always doesn't work for compile time schemas. So that's hout
+          # now doing one thing for both is either confusing or complicated.
           case to_struct(datum, cast_module) do
             {:ok, struct} -> {:cont, [struct | acc]}
             {:error, error} -> {:halt, {:error, DataSchema.Errors.new({field, error})}}
@@ -761,7 +768,7 @@ defmodule DataSchema do
           end
         end)
         |> case do
-          {:error, %DataSchema.Errors{}} = error ->
+          {:error, _} = error ->
             {:halt, error}
 
           relations when is_list(relations) ->
