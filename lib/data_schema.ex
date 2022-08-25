@@ -681,7 +681,7 @@ defmodule DataSchema do
       considered_empty? and not optional? ->
         {:halt, {:error, DataSchema.Errors.null_error(field)}}
 
-      optional? ->
+      considered_empty? and optional? ->
         {:cont, update_struct(struct, field, value)}
 
       true ->
@@ -695,21 +695,25 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:has_many, {field, path, {cast_module, inline_fields}, %{optional?: optional?}}},
+         {:has_many,
+          {field, path, {cast_module, inline_fields},
+           %{optional?: optional?, empty_values: empty_values}}},
          struct,
          accessor,
          data
        ) do
-    case accessor.has_many(data, path) do
-      nil ->
-        if optional? do
-          {:cont, update_struct(struct, field, nil)}
-        else
-          {:halt, {:error, DataSchema.Errors.null_error(field)}}
-        end
+    values = accessor.has_one(data, path)
+    considered_empty? = values in empty_values
 
-      data ->
-        data
+    cond do
+      considered_empty? and not optional? ->
+        {:halt, {:error, DataSchema.Errors.null_error(field)}}
+
+      considered_empty? and optional? ->
+        {:cont, update_struct(struct, field, values)}
+
+      true ->
+        values
         |> Enum.reduce_while([], fn datum, acc ->
           # It's not possible for to_struct to return nil so we don't worry about it here.
           # Should we use the parent data accessor or should we require that the struct
@@ -733,7 +737,7 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:has_many, {field, path, cast_module, %{optional?: optional?}}},
+         {:has_many, {field, path, cast_module, %{optional?: optional?, empty_values: _empty_values}}},
          struct,
          accessor,
          data
