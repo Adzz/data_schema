@@ -604,56 +604,60 @@ defmodule DataSchema do
     end
   end
 
-  defp process_field(
-         {:field, {field, path, cast_fn, %{optional?: optional?}}},
-         struct,
-         accessor,
-         data
-       ) do
-    case {accessor.field(data, path), optional?} do
-      {nil, false} ->
-        {:halt, {:error, DataSchema.Errors.null_error(field)}}
-
-      {value, _} ->
-        case call_cast_fn(cast_fn, value) do
-          {:ok, nil} ->
-            if optional? do
-              {:cont, update_struct(struct, field, nil)}
-            else
-              # Instead of halt we would have to
-              {:halt, {:error, DataSchema.Errors.null_error(field)}}
-            end
-
-          {:ok, value} ->
-            {:cont, update_struct(struct, field, value)}
-
-          {:error, message} ->
-            {:halt, {:error, DataSchema.Errors.new({field, message})}}
-
-          :error ->
-            {:halt, {:error, DataSchema.Errors.default_error(field)}}
-
-          other_value ->
-            raise_incorrect_cast_function_error(field, other_value)
-        end
+  defp validate_against_empty_values(value, empty_values, optional?) do
+    if value in empty_values and not optional? do
+      {:error, :empty_required_value}
+    else
+      {:ok, value}
     end
   end
 
   defp process_field(
-         {:has_one, {field, path, {cast_module, inline_fields}, %{optional?: optional?}}},
+         {:field, {field, path, cast_fn, %{optional?: optional?, empty_values: empty_values}}},
          struct,
          accessor,
          data
        ) do
-    case accessor.has_one(data, path) do
-      nil ->
-        if optional? do
-          {:cont, update_struct(struct, field, nil)}
-        else
-          {:halt, {:error, DataSchema.Errors.null_error(field)}}
-        end
+    with value <- accessor.field(data, path),
+         {:ok, value} <- validate_against_empty_values(value, empty_values, optional?),
+         {:ok, casted_value} <- call_cast_fn(cast_fn, value),
+         {:ok, casted_value} <-
+           validate_against_empty_values(casted_value, empty_values, optional?) do
+      {:cont, update_struct(struct, field, casted_value)}
+    else
+      {:error, :empty_required_value} ->
+        {:halt, {:error, DataSchema.Errors.null_error(field)}}
 
-      value ->
+      {:error, message} ->
+        {:halt, {:error, DataSchema.Errors.new({field, message})}}
+
+      :error ->
+        {:halt, {:error, DataSchema.Errors.default_error(field)}}
+
+      other_value ->
+        raise_incorrect_cast_function_error(field, other_value)
+    end
+  end
+
+  defp process_field(
+         {:has_one,
+          {field, path, {cast_module, inline_fields},
+           %{optional?: optional?, empty_values: empty_values}}},
+         struct,
+         accessor,
+         data
+       ) do
+    value = accessor.has_one(data, path)
+    considered_empty? = value in empty_values
+
+    cond do
+      considered_empty? and not optional? ->
+        {:halt, {:error, DataSchema.Errors.null_error(field)}}
+
+      optional? ->
+        {:cont, update_struct(struct, field, value)}
+
+      true ->
         case to_struct(value, cast_module, inline_fields, accessor, []) do
           # It's not possible for to_struct to return nil so we don't handle that case here
           {:ok, value} -> {:cont, update_struct(struct, field, value)}
@@ -664,20 +668,23 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:has_one, {field, path, cast_module, %{optional?: optional?}}},
+         {:has_one,
+          {field, path, cast_module, %{optional?: optional?, empty_values: empty_values}}},
          struct,
          accessor,
          data
        ) do
-    case accessor.has_one(data, path) do
-      nil ->
-        if optional? do
-          {:cont, update_struct(struct, field, nil)}
-        else
-          {:halt, {:error, DataSchema.Errors.null_error(field)}}
-        end
+    value = accessor.has_one(data, path)
+    considered_empty? = value in empty_values
 
-      value ->
+    cond do
+      considered_empty? and not optional? ->
+        {:halt, {:error, DataSchema.Errors.null_error(field)}}
+
+      optional? ->
+        {:cont, update_struct(struct, field, value)}
+
+      true ->
         case to_struct(value, cast_module) do
           # It's not possible for to_struct to return nil so we don't handle that case here
           {:ok, value} -> {:cont, update_struct(struct, field, value)}
