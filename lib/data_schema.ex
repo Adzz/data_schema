@@ -559,29 +559,44 @@ defmodule DataSchema do
 
     fields
     |> Enum.map(fn field ->
+      defaults = %{
+        optional?: false,
+        empty_values: [nil]
+      }
+
       case field do
         {type, {field, schema_mod, cast_fn}} ->
-          {type, {field, schema_mod, cast_fn, [optional?: false, empty_values: [nil]]}}
+          {type, {field, schema_mod, cast_fn, defaults}}
 
-        field ->
-          field
+        {type, {field, schema_mod, cast_fn, opts}} ->
+          opts_as_map = Map.merge(defaults, Enum.into(opts, %{}))
+
+          {type, {field, schema_mod, cast_fn, opts_as_map}}
       end
     end)
     |> Enum.reduce_while(struct, fn
       {:aggregate, {field, schema_mod, cast_fn, field_opts}}, struct when is_atom(schema_mod) ->
-        nullable? = Keyword.get(field_opts, :optional?, false)
         fields = schema_mod.__data_schema_fields()
         accessor = schema_mod.__data_accessor()
         aggregate = struct(schema_mod, %{})
-        aggregate(fields, accessor, data, opts, field, cast_fn, aggregate, struct, nullable?)
+
+        aggregate(
+          fields,
+          accessor,
+          data,
+          opts,
+          field,
+          cast_fn,
+          aggregate,
+          struct,
+          field_opts.optional?
+        )
 
       {:aggregate, {field, fields, cast_fn, field_opts}}, struct when is_list(fields) ->
-        nullable? = Keyword.get(field_opts, :optional?, false)
-        aggregate(fields, accessor, data, opts, field, cast_fn, %{}, struct, nullable?)
+        aggregate(fields, accessor, data, opts, field, cast_fn, %{}, struct, field_opts.optional?)
 
       {field_type, {field, paths, cast_fn, field_opts}}, struct ->
-        nullable? = Keyword.get(field_opts, :optional?, false)
-        process_field({field_type, {field, paths, cast_fn}}, struct, nullable?, accessor, data)
+        process_field({field_type, {field, paths, cast_fn, field_opts}}, struct, accessor, data)
     end)
     |> case do
       {:error, error_message} -> {:error, error_message}
@@ -589,7 +604,12 @@ defmodule DataSchema do
     end
   end
 
-  defp process_field({:field, {field, path, cast_fn}}, struct, nullable?, accessor, data) do
+  defp process_field(
+         {:field, {field, path, cast_fn, %{optional?: nullable?}}},
+         struct,
+         accessor,
+         data
+       ) do
     case {accessor.field(data, path), nullable?} do
       {nil, false} ->
         {:halt, {:error, DataSchema.Errors.null_error(field)}}
@@ -620,9 +640,8 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:has_one, {field, path, {cast_module, inline_fields}}},
+         {:has_one, {field, path, {cast_module, inline_fields}, %{optional?: nullable?}}},
          struct,
-         nullable?,
          accessor,
          data
        ) do
@@ -644,7 +663,12 @@ defmodule DataSchema do
     end
   end
 
-  defp process_field({:has_one, {field, path, cast_module}}, struct, nullable?, accessor, data) do
+  defp process_field(
+         {:has_one, {field, path, cast_module, %{optional?: nullable?}}},
+         struct,
+         accessor,
+         data
+       ) do
     case accessor.has_one(data, path) do
       nil ->
         if nullable? do
@@ -664,9 +688,8 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:has_many, {field, path, {cast_module, inline_fields}}},
+         {:has_many, {field, path, {cast_module, inline_fields}, %{optional?: nullable?}}},
          struct,
-         nullable?,
          accessor,
          data
        ) do
@@ -703,9 +726,8 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:has_many, {field, path, cast_module}},
+         {:has_many, {field, path, cast_module, %{optional?: nullable?}}},
          struct,
-         nullable?,
          accessor,
          data
        ) do
@@ -737,7 +759,12 @@ defmodule DataSchema do
     end
   end
 
-  defp process_field({:list_of, {field, path, cast_module}}, struct, nullable?, accessor, data) do
+  defp process_field(
+         {:list_of, {field, path, cast_module, %{optional?: nullable?}}},
+         struct,
+         accessor,
+         data
+       ) do
     case accessor.list_of(data, path) do
       nil ->
         if nullable? do
