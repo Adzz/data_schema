@@ -605,19 +605,19 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:field, {field, path, cast_fn, %{optional?: nullable?}}},
+         {:field, {field, path, cast_fn, %{optional?: optional?}}},
          struct,
          accessor,
          data
        ) do
-    case {accessor.field(data, path), nullable?} do
+    case {accessor.field(data, path), optional?} do
       {nil, false} ->
         {:halt, {:error, DataSchema.Errors.null_error(field)}}
 
       {value, _} ->
         case call_cast_fn(cast_fn, value) do
           {:ok, nil} ->
-            if nullable? do
+            if optional? do
               {:cont, update_struct(struct, field, nil)}
             else
               # Instead of halt we would have to
@@ -640,14 +640,14 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:has_one, {field, path, {cast_module, inline_fields}, %{optional?: nullable?}}},
+         {:has_one, {field, path, {cast_module, inline_fields}, %{optional?: optional?}}},
          struct,
          accessor,
          data
        ) do
     case accessor.has_one(data, path) do
       nil ->
-        if nullable? do
+        if optional? do
           {:cont, update_struct(struct, field, nil)}
         else
           {:halt, {:error, DataSchema.Errors.null_error(field)}}
@@ -664,14 +664,14 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:has_one, {field, path, cast_module, %{optional?: nullable?}}},
+         {:has_one, {field, path, cast_module, %{optional?: optional?}}},
          struct,
          accessor,
          data
        ) do
     case accessor.has_one(data, path) do
       nil ->
-        if nullable? do
+        if optional? do
           {:cont, update_struct(struct, field, nil)}
         else
           {:halt, {:error, DataSchema.Errors.null_error(field)}}
@@ -688,14 +688,14 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:has_many, {field, path, {cast_module, inline_fields}, %{optional?: nullable?}}},
+         {:has_many, {field, path, {cast_module, inline_fields}, %{optional?: optional?}}},
          struct,
          accessor,
          data
        ) do
     case accessor.has_many(data, path) do
       nil ->
-        if nullable? do
+        if optional? do
           {:cont, update_struct(struct, field, nil)}
         else
           {:halt, {:error, DataSchema.Errors.null_error(field)}}
@@ -726,14 +726,14 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:has_many, {field, path, cast_module, %{optional?: nullable?}}},
+         {:has_many, {field, path, cast_module, %{optional?: optional?}}},
          struct,
          accessor,
          data
        ) do
     case accessor.has_many(data, path) do
       nil ->
-        if nullable? do
+        if optional? do
           {:cont, update_struct(struct, field, nil)}
         else
           {:halt, {:error, DataSchema.Errors.null_error(field)}}
@@ -760,14 +760,14 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:list_of, {field, path, cast_module, %{optional?: nullable?}}},
+         {:list_of, {field, path, cast_module, %{optional?: optional?}}},
          struct,
          accessor,
          data
        ) do
     case accessor.list_of(data, path) do
       nil ->
-        if nullable? do
+        if optional? do
           {:cont, update_struct(struct, field, nil)}
         else
           {:halt, {:error, DataSchema.Errors.null_error(field)}}
@@ -778,7 +778,7 @@ defmodule DataSchema do
         |> Enum.reduce_while([], fn datum, acc ->
           case call_cast_fn(cast_module, datum) do
             {:ok, nil} ->
-              if nullable? do
+              if optional? do
                 # Do we add nil or do we remove them? a list of nils seeeeems bad. But is it
                 # better to not remove information...?
                 {:cont, [nil | acc]}
