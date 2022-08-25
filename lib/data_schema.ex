@@ -778,21 +778,24 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:list_of, {field, path, cast_module, %{optional?: optional?}}},
+         {:list_of,
+          {field, path, cast_module, %{optional?: optional?, empty_values: empty_values}}},
          struct,
          accessor,
          data
        ) do
-    case accessor.list_of(data, path) do
-      nil ->
-        if optional? do
-          {:cont, update_struct(struct, field, nil)}
-        else
-          {:halt, {:error, DataSchema.Errors.null_error(field)}}
-        end
+    values = accessor.list_of(data, path)
+    considered_empty? = values in empty_values
 
-      data ->
-        data
+    cond do
+      considered_empty? and not optional? ->
+        {:halt, {:error, DataSchema.Errors.null_error(field)}}
+
+      considered_empty? and optional? ->
+        {:cont, update_struct(struct, field, values)}
+
+      true ->
+        values
         |> Enum.reduce_while([], fn datum, acc ->
           case call_cast_fn(cast_module, datum) do
             {:ok, nil} ->
