@@ -582,11 +582,6 @@ defmodule DataSchema do
       {field_type, {field, paths, cast_fn, field_opts}}, struct ->
         nullable? = Keyword.get(field_opts, :optional?, false)
         process_field({field_type, {field, paths, cast_fn}}, struct, nullable?, accessor, data)
-
-      {_, {_, _, _}} = field, struct ->
-        # By default fields are not nullable.
-        nullable? = false
-        process_field(field, struct, nullable?, accessor, data)
     end)
     |> case do
       {:error, error_message} -> {:error, error_message}
