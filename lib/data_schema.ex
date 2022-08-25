@@ -557,7 +557,17 @@ defmodule DataSchema do
     # the errors.
     # collect_errors? = Keyword.get(opts, :collect_errors, false)
 
-    Enum.reduce_while(fields, struct, fn
+    fields
+    |> Enum.map(fn field ->
+      case field do
+        {type, {field, schema_mod, cast_fn}} ->
+          {type, {field, schema_mod, cast_fn, [optional?: false, empty_values: [nil]]}}
+
+        field ->
+          field
+      end
+    end)
+    |> Enum.reduce_while(struct, fn
       {:aggregate, {field, schema_mod, cast_fn, field_opts}}, struct when is_atom(schema_mod) ->
         nullable? = Keyword.get(field_opts, :optional?, false)
         fields = schema_mod.__data_schema_fields()
@@ -565,18 +575,9 @@ defmodule DataSchema do
         aggregate = struct(schema_mod, %{})
         aggregate(fields, accessor, data, opts, field, cast_fn, aggregate, struct, nullable?)
 
-      {:aggregate, {field, schema_mod, cast_fn}}, struct when is_atom(schema_mod) ->
-        fields = schema_mod.__data_schema_fields()
-        accessor = schema_mod.__data_accessor()
-        aggregate = struct(schema_mod, %{})
-        aggregate(fields, accessor, data, opts, field, cast_fn, aggregate, struct, false)
-
       {:aggregate, {field, fields, cast_fn, field_opts}}, struct when is_list(fields) ->
         nullable? = Keyword.get(field_opts, :optional?, false)
         aggregate(fields, accessor, data, opts, field, cast_fn, %{}, struct, nullable?)
-
-      {:aggregate, {field, fields, cast_fn}}, struct when is_list(fields) ->
-        aggregate(fields, accessor, data, opts, field, cast_fn, %{}, struct, false)
 
       {field_type, {field, paths, cast_fn, field_opts}}, struct ->
         nullable? = Keyword.get(field_opts, :optional?, false)
