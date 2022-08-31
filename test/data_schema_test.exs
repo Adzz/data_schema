@@ -41,8 +41,8 @@ defmodule DataSchemaTest do
 
       data_schema(
         field:
-        {:account_number, "account_number", &DataSchemaTest.to_stringg/1,
-         [optional?: false, empty_values: ["", nil, :undefined]]},
+          {:account_number, "account_number", &DataSchemaTest.to_stringg/1,
+           [optional?: false, empty_values: ["", nil, :undefined]]}
       )
     end
 

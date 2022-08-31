@@ -559,19 +559,19 @@ defmodule DataSchema do
 
     fields
     |> Enum.map(fn field ->
-      defaults = %{
+      defaults = [
         optional?: false,
         empty_values: [nil]
-      }
+      ]
 
       case field do
         {type, {field, schema_mod, cast_fn}} ->
           {type, {field, schema_mod, cast_fn, defaults}}
 
         {type, {field, schema_mod, cast_fn, opts}} ->
-          opts_as_map = Map.merge(defaults, Enum.into(opts, %{}))
+          opts_with_defaults = Keyword.merge(defaults, opts)
 
-          {type, {field, schema_mod, cast_fn, opts_as_map}}
+          {type, {field, schema_mod, cast_fn, opts_with_defaults}}
       end
     end)
     |> Enum.reduce_while(struct, fn
@@ -589,11 +589,21 @@ defmodule DataSchema do
           cast_fn,
           aggregate,
           struct,
-          field_opts.optional?
+          Keyword.get(field_opts, :optional?)
         )
 
       {:aggregate, {field, fields, cast_fn, field_opts}}, struct when is_list(fields) ->
-        aggregate(fields, accessor, data, opts, field, cast_fn, %{}, struct, field_opts.optional?)
+        aggregate(
+          fields,
+          accessor,
+          data,
+          opts,
+          field,
+          cast_fn,
+          %{},
+          struct,
+          Keyword.get(field_opts, :optional?)
+        )
 
       {field_type, {field, paths, cast_fn, field_opts}}, struct ->
         process_field({field_type, {field, paths, cast_fn, field_opts}}, struct, accessor, data)
@@ -604,7 +614,10 @@ defmodule DataSchema do
     end
   end
 
-  defp validate_against_empty_values(value, empty_values, optional?) do
+  defp validate_against_empty_values(value, opts) do
+    empty_values = Keyword.get(opts, :empty_values)
+    optional? = Keyword.get(opts, :optional?)
+
     if value in empty_values and not optional? do
       {:error, :empty_required_value}
     else
@@ -613,16 +626,16 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:field, {field, path, cast_fn, %{optional?: optional?, empty_values: empty_values}}},
+         {:field, {field, path, cast_fn, opts}},
          struct,
          accessor,
          data
        ) do
     with value <- accessor.field(data, path),
-         {:ok, value} <- validate_against_empty_values(value, empty_values, optional?),
+         {:ok, value} <- validate_against_empty_values(value, opts),
          {:ok, casted_value} <- call_cast_fn(cast_fn, value),
          {:ok, casted_value} <-
-           validate_against_empty_values(casted_value, empty_values, optional?) do
+           validate_against_empty_values(casted_value, opts) do
       {:cont, update_struct(struct, field, casted_value)}
     else
       {:error, :empty_required_value} ->
@@ -640,21 +653,23 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:has_one,
-          {field, path, {cast_module, inline_fields},
-           %{optional?: optional?, empty_values: empty_values}}},
+         {:has_one, {field, path, {cast_module, inline_fields}, opts}},
          struct,
          accessor,
          data
        ) do
     value = accessor.has_one(data, path)
+
+    empty_values = Keyword.get(opts, :empty_values)
+    optional? = Keyword.get(opts, :optional?)
+
     considered_empty? = value in empty_values
 
     cond do
       considered_empty? and not optional? ->
         {:halt, {:error, DataSchema.Errors.null_error(field)}}
 
-      optional? ->
+      considered_empty? and optional? ->
         {:cont, update_struct(struct, field, value)}
 
       true ->
@@ -668,13 +683,16 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:has_one,
-          {field, path, cast_module, %{optional?: optional?, empty_values: empty_values}}},
+         {:has_one, {field, path, cast_module, opts}},
          struct,
          accessor,
          data
        ) do
     value = accessor.has_one(data, path)
+
+    empty_values = Keyword.get(opts, :empty_values)
+    optional? = Keyword.get(opts, :optional?)
+
     considered_empty? = value in empty_values
 
     cond do
@@ -695,14 +713,16 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:has_many,
-          {field, path, {cast_module, inline_fields},
-           %{optional?: optional?, empty_values: empty_values}}},
+         {:has_many, {field, path, {cast_module, inline_fields}, opts}},
          struct,
          accessor,
          data
        ) do
     values = accessor.has_many(data, path)
+
+    empty_values = Keyword.get(opts, :empty_values)
+    optional? = Keyword.get(opts, :optional?)
+
     considered_empty? = values in empty_values
 
     cond do
@@ -737,13 +757,16 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:has_many,
-          {field, path, cast_module, %{optional?: optional?, empty_values: empty_values}}},
+         {:has_many, {field, path, cast_module, opts}},
          struct,
          accessor,
          data
        ) do
     values = accessor.has_many(data, path)
+
+    empty_values = Keyword.get(opts, :empty_values)
+    optional? = Keyword.get(opts, :optional?)
+
     considered_empty? = values in empty_values
 
     cond do
@@ -778,13 +801,16 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:list_of,
-          {field, path, cast_module, %{optional?: optional?, empty_values: empty_values}}},
+         {:list_of, {field, path, cast_module, opts}},
          struct,
          accessor,
          data
        ) do
     values = accessor.list_of(data, path)
+
+    empty_values = Keyword.get(opts, :empty_values)
+    optional? = Keyword.get(opts, :optional?)
+
     considered_empty? = values in empty_values
 
     cond do
