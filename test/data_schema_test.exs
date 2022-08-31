@@ -71,6 +71,60 @@ defmodule DataSchemaTest do
                   ]
                 }}
     end
+
+    test "causes errors when making structs declared with values considered as empty (:list_of)" do
+      defmodule Something do
+        import DataSchema, only: [data_schema: 1]
+
+        data_schema(
+          field:
+            {:required_array, "required_array", fn v -> {:ok, v} end,
+             [optional?: false, empty_values: [[], nil]]}
+        )
+      end
+
+      assert DataSchema.to_struct(%{required_array: []}, Something) ==
+               {:error,
+                %DataSchema.Errors{
+                  errors: [
+                    required_array: "Field was required but value supplied is considered empty"
+                  ]
+                }}
+
+      assert DataSchema.to_struct(%{required_array: nil}, Something) ==
+               {:error,
+                %DataSchema.Errors{
+                  errors: [
+                    required_array: "Field was required but value supplied is considered empty"
+                  ]
+                }}
+    end
+
+    test "causes errors when making structs declared with values considered as empty (:has_many)" do
+      defmodule Commentary do
+        import DataSchema, only: [data_schema: 1]
+
+        data_schema(
+          has_many: {:comments, "comments", Comment, [optional?: false, empty_values: [[], nil]]}
+        )
+      end
+
+      assert DataSchema.to_struct(%{required_array: []}, Commentary) ==
+               {:error,
+                %DataSchema.Errors{
+                  errors: [
+                    comments: "Field was required but value supplied is considered empty"
+                  ]
+                }}
+
+      assert DataSchema.to_struct(%{comments: nil}, Commentary) ==
+               {:error,
+                %DataSchema.Errors{
+                  errors: [
+                    comments: "Field was required but value supplied is considered empty"
+                  ]
+                }}
+    end
   end
 
   describe "data_schema/1" do

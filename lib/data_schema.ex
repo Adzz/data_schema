@@ -619,7 +619,7 @@ defmodule DataSchema do
     optional? = Keyword.get(opts, :optional?)
 
     if value in empty_values and not optional? do
-      {:error, :empty_required_value, value}
+      {:error, :empty_required_value}
     else
       {:ok, value}
     end
@@ -639,7 +639,7 @@ defmodule DataSchema do
            validate_against_empty_values(casted_value, opts) do
       {:cont, update_struct(struct, field, casted_value)}
     else
-      {:error, :empty_required_value, value} ->
+      {:error, :empty_required_value} ->
         {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
 
       {:error, message} ->
@@ -728,7 +728,7 @@ defmodule DataSchema do
 
     cond do
       considered_empty? and not optional? ->
-        {:halt, {:error, DataSchema.Errors.empty_required_value_error(field, values)}}
+        {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
 
       considered_empty? and optional? ->
         {:cont, update_struct(struct, field, values)}
@@ -772,7 +772,7 @@ defmodule DataSchema do
 
     cond do
       considered_empty? and not optional? ->
-        {:halt, {:error, DataSchema.Errors.empty_required_value_error(field, values)}}
+        {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
 
       considered_empty? and optional? ->
         {:cont, update_struct(struct, field, values)}
@@ -816,7 +816,7 @@ defmodule DataSchema do
 
     cond do
       considered_empty? and not optional? ->
-        {:halt, {:error, DataSchema.Errors.empty_required_value_error(field, values)}}
+        {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
 
       considered_empty? and optional? ->
         {:cont, update_struct(struct, field, values)}
