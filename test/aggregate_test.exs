@@ -25,7 +25,9 @@ defmodule DataSchema.AggregateTest do
                 %DataSchema.Errors{
                   errors: [
                     agg: %DataSchema.Errors{
-                      errors: [foo: "Field was marked as not null but was found to be null."]
+                      errors: [
+                        foo: "Field was required but value supplied is considered empty"
+                      ]
                     }
                   ]
                 }}

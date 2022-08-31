@@ -151,7 +151,9 @@ defmodule DataSchemaXmlTest do
           salads: %DataSchema.Errors{
             errors: [
               cheese_slices: %DataSchema.Errors{
-                errors: [mouldy?: "Field was marked as not null but was found to be null."]
+                errors: [
+                  mouldy?: "Field was required but value supplied is considered empty"
+                ]
               }
             ]
           }
