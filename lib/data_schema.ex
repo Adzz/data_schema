@@ -735,13 +735,13 @@ defmodule DataSchema do
 
       true ->
         values
-        |> Enum.reduce_while([], fn datum, acc ->
+        |> Enum.reduce_while([], fn value, acc ->
           # It's not possible for to_struct to return nil so we don't worry about it here.
           # Should we use the parent data accessor or should we require that the struct
           # defines one?
           # using the parent always doesn't work for compile time schemas. So that's hout
           # now doing one thing for both is either confusing or complicated.
-          case to_struct(datum, cast_module, inline_fields, accessor, []) do
+          case to_struct(value, cast_module, inline_fields, accessor, []) do
             {:ok, struct} -> {:cont, [struct | acc]}
             {:error, error} -> {:halt, {:error, DataSchema.Errors.new({field, error})}}
             :error -> {:halt, {:error, DataSchema.Errors.default_error(field)}}
@@ -779,13 +779,13 @@ defmodule DataSchema do
 
       true ->
         values
-        |> Enum.reduce_while([], fn datum, acc ->
+        |> Enum.reduce_while([], fn value, acc ->
           # It's not possible for to_struct to return nil so we don't worry about it here.
           # Should we use the parent data accessor or should we require that the struct
           # defines one?
           # using the parent always doesn't work for compile time schemas. So that's hout
           # now doing one thing for both is either confusing or complicated.
-          case to_struct(datum, cast_module) do
+          case to_struct(value, cast_module) do
             {:ok, struct} -> {:cont, [struct | acc]}
             {:error, error} -> {:halt, {:error, DataSchema.Errors.new({field, error})}}
             :error -> {:halt, {:error, DataSchema.Errors.default_error(field)}}
@@ -823,8 +823,8 @@ defmodule DataSchema do
 
       true ->
         values
-        |> Enum.reduce_while([], fn datum, acc ->
-          case call_cast_fn(cast_module, datum) do
+        |> Enum.reduce_while([], fn value, acc ->
+          case call_cast_fn(cast_module, value) do
             {:ok, nil} ->
               if optional? do
                 # Do we add nil or do we remove them? a list of nils seeeeems bad. But is it
