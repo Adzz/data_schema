@@ -614,17 +614,6 @@ defmodule DataSchema do
     end
   end
 
-  defp validate_against_empty_values(value, opts) do
-    empty_values = Keyword.get(opts, :empty_values)
-    optional? = Keyword.get(opts, :optional?)
-
-    if value in empty_values and not optional? do
-      {:error, :empty_required_value}
-    else
-      {:ok, value}
-    end
-  end
-
   defp process_field(
          {:field, {field, path, cast_fn, opts}},
          struct,
@@ -814,14 +803,14 @@ defmodule DataSchema do
 
     considered_empty? = values in empty_values
 
-    cond do
-      considered_empty? and not optional? ->
+    case {considered_empty?, optional?} do
+      {true, false} ->
         {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
 
-      considered_empty? and optional? ->
+      {true, true} ->
         {:cont, update_struct(struct, field, values)}
 
-      true ->
+      {_, _} ->
         values
         |> Enum.reduce_while([], fn value, acc ->
           case call_cast_fn(cast_module, value) do
@@ -883,6 +872,17 @@ defmodule DataSchema do
           other_value ->
             raise_incorrect_cast_function_error(field, other_value)
         end
+    end
+  end
+
+  defp validate_against_empty_values(value, opts) do
+    empty_values = Keyword.get(opts, :empty_values)
+    optional? = Keyword.get(opts, :optional?)
+
+    if value in empty_values and not optional? do
+      {:error, :empty_required_value}
+    else
+      {:ok, value}
     end
   end
 
