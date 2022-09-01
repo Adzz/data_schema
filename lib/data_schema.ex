@@ -557,35 +557,56 @@ defmodule DataSchema do
     # the errors.
     # collect_errors? = Keyword.get(opts, :collect_errors, false)
 
-    Enum.reduce_while(fields, struct, fn
-      {:aggregate, {field, schema_mod, cast_fn, field_opts}}, struct when is_atom(schema_mod) ->
-        nullable? = Keyword.get(field_opts, :optional?, false)
-        fields = schema_mod.__data_schema_fields()
-        accessor = schema_mod.__data_accessor()
-        aggregate = struct(schema_mod, %{})
-        aggregate(fields, accessor, data, opts, field, cast_fn, aggregate, struct, nullable?)
+    fields
+    |> Enum.map(fn field ->
+      defaults = [
+        optional?: false,
+        empty_values: [nil]
+      ]
 
-      {:aggregate, {field, schema_mod, cast_fn}}, struct when is_atom(schema_mod) ->
+      case field do
+        {type, {field, schema_mod, cast_fn}} ->
+          {type, {field, schema_mod, cast_fn, defaults}}
+
+        {type, {field, schema_mod, cast_fn, opts}} ->
+          opts_with_defaults = Keyword.merge(defaults, opts)
+
+          {type, {field, schema_mod, cast_fn, opts_with_defaults}}
+      end
+    end)
+    |> Enum.reduce_while(struct, fn
+      {:aggregate, {field, schema_mod, cast_fn, field_opts}}, struct when is_atom(schema_mod) ->
         fields = schema_mod.__data_schema_fields()
         accessor = schema_mod.__data_accessor()
         aggregate = struct(schema_mod, %{})
-        aggregate(fields, accessor, data, opts, field, cast_fn, aggregate, struct, false)
+
+        aggregate(
+          fields,
+          accessor,
+          data,
+          opts,
+          field,
+          cast_fn,
+          aggregate,
+          struct,
+          Keyword.get(field_opts, :optional?)
+        )
 
       {:aggregate, {field, fields, cast_fn, field_opts}}, struct when is_list(fields) ->
-        nullable? = Keyword.get(field_opts, :optional?, false)
-        aggregate(fields, accessor, data, opts, field, cast_fn, %{}, struct, nullable?)
-
-      {:aggregate, {field, fields, cast_fn}}, struct when is_list(fields) ->
-        aggregate(fields, accessor, data, opts, field, cast_fn, %{}, struct, false)
+        aggregate(
+          fields,
+          accessor,
+          data,
+          opts,
+          field,
+          cast_fn,
+          %{},
+          struct,
+          Keyword.get(field_opts, :optional?)
+        )
 
       {field_type, {field, paths, cast_fn, field_opts}}, struct ->
-        nullable? = Keyword.get(field_opts, :optional?, false)
-        process_field({field_type, {field, paths, cast_fn}}, struct, nullable?, accessor, data)
-
-      {_, {_, _, _}} = field, struct ->
-        # By default fields are not nullable.
-        nullable? = false
-        process_field(field, struct, nullable?, accessor, data)
+        process_field({field_type, {field, paths, cast_fn, field_opts}}, struct, accessor, data)
     end)
     |> case do
       {:error, error_message} -> {:error, error_message}
@@ -593,52 +614,66 @@ defmodule DataSchema do
     end
   end
 
-  defp process_field({:field, {field, path, cast_fn}}, struct, nullable?, accessor, data) do
-    case {accessor.field(data, path), nullable?} do
-      {nil, false} ->
-        {:halt, {:error, DataSchema.Errors.null_error(field)}}
+  defp validate_against_empty_values(value, opts) do
+    empty_values = Keyword.get(opts, :empty_values)
+    optional? = Keyword.get(opts, :optional?)
 
-      {value, _} ->
-        case call_cast_fn(cast_fn, value) do
-          {:ok, nil} ->
-            if nullable? do
-              {:cont, update_struct(struct, field, nil)}
-            else
-              # Instead of halt we would have to
-              {:halt, {:error, DataSchema.Errors.null_error(field)}}
-            end
-
-          {:ok, value} ->
-            {:cont, update_struct(struct, field, value)}
-
-          {:error, message} ->
-            {:halt, {:error, DataSchema.Errors.new({field, message})}}
-
-          :error ->
-            {:halt, {:error, DataSchema.Errors.default_error(field)}}
-
-          other_value ->
-            raise_incorrect_cast_function_error(field, other_value)
-        end
+    if value in empty_values and not optional? do
+      {:error, :empty_required_value}
+    else
+      {:ok, value}
     end
   end
 
   defp process_field(
-         {:has_one, {field, path, {cast_module, inline_fields}}},
+         {:field, {field, path, cast_fn, opts}},
          struct,
-         nullable?,
          accessor,
          data
        ) do
-    case accessor.has_one(data, path) do
-      nil ->
-        if nullable? do
-          {:cont, update_struct(struct, field, nil)}
-        else
-          {:halt, {:error, DataSchema.Errors.null_error(field)}}
-        end
+    value = accessor.field(data, path)
 
-      value ->
+    with {:ok, value} <- validate_against_empty_values(value, opts),
+         {:ok, casted_value} <- call_cast_fn(cast_fn, value),
+         {:ok, casted_value} <-
+           validate_against_empty_values(casted_value, opts) do
+      {:cont, update_struct(struct, field, casted_value)}
+    else
+      {:error, :empty_required_value} ->
+        {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
+
+      {:error, message} ->
+        {:halt, {:error, DataSchema.Errors.new({field, message})}}
+
+      :error ->
+        {:halt, {:error, DataSchema.Errors.default_error(field)}}
+
+      other_value ->
+        raise_incorrect_cast_function_error(field, other_value)
+    end
+  end
+
+  defp process_field(
+         {:has_one, {field, path, {cast_module, inline_fields}, opts}},
+         struct,
+         accessor,
+         data
+       ) do
+    value = accessor.has_one(data, path)
+
+    empty_values = Keyword.get(opts, :empty_values)
+    optional? = Keyword.get(opts, :optional?)
+
+    considered_empty? = value in empty_values
+
+    cond do
+      considered_empty? and not optional? ->
+        {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
+
+      considered_empty? and optional? ->
+        {:cont, update_struct(struct, field, value)}
+
+      true ->
         case to_struct(value, cast_module, inline_fields, accessor, []) do
           # It's not possible for to_struct to return nil so we don't handle that case here
           {:ok, value} -> {:cont, update_struct(struct, field, value)}
@@ -648,16 +683,27 @@ defmodule DataSchema do
     end
   end
 
-  defp process_field({:has_one, {field, path, cast_module}}, struct, nullable?, accessor, data) do
-    case accessor.has_one(data, path) do
-      nil ->
-        if nullable? do
-          {:cont, update_struct(struct, field, nil)}
-        else
-          {:halt, {:error, DataSchema.Errors.null_error(field)}}
-        end
+  defp process_field(
+         {:has_one, {field, path, cast_module, opts}},
+         struct,
+         accessor,
+         data
+       ) do
+    value = accessor.has_one(data, path)
 
-      value ->
+    empty_values = Keyword.get(opts, :empty_values)
+    optional? = Keyword.get(opts, :optional?)
+
+    considered_empty? = value in empty_values
+
+    cond do
+      considered_empty? and not optional? ->
+        {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
+
+      considered_empty? and optional? ->
+        {:cont, update_struct(struct, field, value)}
+
+      true ->
         case to_struct(value, cast_module) do
           # It's not possible for to_struct to return nil so we don't handle that case here
           {:ok, value} -> {:cont, update_struct(struct, field, value)}
@@ -668,29 +714,34 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:has_many, {field, path, {cast_module, inline_fields}}},
+         {:has_many, {field, path, {cast_module, inline_fields}, opts}},
          struct,
-         nullable?,
          accessor,
          data
        ) do
-    case accessor.has_many(data, path) do
-      nil ->
-        if nullable? do
-          {:cont, update_struct(struct, field, nil)}
-        else
-          {:halt, {:error, DataSchema.Errors.null_error(field)}}
-        end
+    values = accessor.has_many(data, path)
 
-      data ->
-        data
-        |> Enum.reduce_while([], fn datum, acc ->
+    empty_values = Keyword.get(opts, :empty_values)
+    optional? = Keyword.get(opts, :optional?)
+
+    considered_empty? = values in empty_values
+
+    cond do
+      considered_empty? and not optional? ->
+        {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
+
+      considered_empty? and optional? ->
+        {:cont, update_struct(struct, field, values)}
+
+      true ->
+        values
+        |> Enum.reduce_while([], fn value, acc ->
           # It's not possible for to_struct to return nil so we don't worry about it here.
           # Should we use the parent data accessor or should we require that the struct
           # defines one?
           # using the parent always doesn't work for compile time schemas. So that's hout
           # now doing one thing for both is either confusing or complicated.
-          case to_struct(datum, cast_module, inline_fields, accessor, []) do
+          case to_struct(value, cast_module, inline_fields, accessor, []) do
             {:ok, struct} -> {:cont, [struct | acc]}
             {:error, error} -> {:halt, {:error, DataSchema.Errors.new({field, error})}}
             :error -> {:halt, {:error, DataSchema.Errors.default_error(field)}}
@@ -707,32 +758,41 @@ defmodule DataSchema do
   end
 
   defp process_field(
-         {:has_many, {field, path, cast_module}},
+         {:has_many, {field, path, cast_module, opts}},
          struct,
-         nullable?,
          accessor,
          data
        ) do
-    case accessor.has_many(data, path) do
-      nil ->
-        if nullable? do
-          {:cont, update_struct(struct, field, nil)}
-        else
-          {:halt, {:error, DataSchema.Errors.null_error(field)}}
-        end
+    values = accessor.has_many(data, path)
 
-      data ->
-        data
-        |> Enum.reduce_while([], fn datum, acc ->
+    empty_values = Keyword.get(opts, :empty_values)
+    optional? = Keyword.get(opts, :optional?)
+
+    considered_empty? = values in empty_values
+
+    cond do
+      considered_empty? and not optional? ->
+        {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
+
+      considered_empty? and optional? ->
+        {:cont, update_struct(struct, field, values)}
+
+      true ->
+        values
+        |> Enum.reduce_while([], fn value, acc ->
           # It's not possible for to_struct to return nil so we don't worry about it here.
-          case to_struct(datum, cast_module) do
+          # Should we use the parent data accessor or should we require that the struct
+          # defines one?
+          # using the parent always doesn't work for compile time schemas. So that's hout
+          # now doing one thing for both is either confusing or complicated.
+          case to_struct(value, cast_module) do
             {:ok, struct} -> {:cont, [struct | acc]}
             {:error, error} -> {:halt, {:error, DataSchema.Errors.new({field, error})}}
             :error -> {:halt, {:error, DataSchema.Errors.default_error(field)}}
           end
         end)
         |> case do
-          {:error, %DataSchema.Errors{}} = error ->
+          {:error, _} = error ->
             {:halt, error}
 
           relations when is_list(relations) ->
@@ -741,21 +801,32 @@ defmodule DataSchema do
     end
   end
 
-  defp process_field({:list_of, {field, path, cast_module}}, struct, nullable?, accessor, data) do
-    case accessor.list_of(data, path) do
-      nil ->
-        if nullable? do
-          {:cont, update_struct(struct, field, nil)}
-        else
-          {:halt, {:error, DataSchema.Errors.null_error(field)}}
-        end
+  defp process_field(
+         {:list_of, {field, path, cast_module, opts}},
+         struct,
+         accessor,
+         data
+       ) do
+    values = accessor.list_of(data, path)
 
-      data ->
-        data
-        |> Enum.reduce_while([], fn datum, acc ->
-          case call_cast_fn(cast_module, datum) do
+    empty_values = Keyword.get(opts, :empty_values)
+    optional? = Keyword.get(opts, :optional?)
+
+    considered_empty? = values in empty_values
+
+    cond do
+      considered_empty? and not optional? ->
+        {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
+
+      considered_empty? and optional? ->
+        {:cont, update_struct(struct, field, values)}
+
+      true ->
+        values
+        |> Enum.reduce_while([], fn value, acc ->
+          case call_cast_fn(cast_module, value) do
             {:ok, nil} ->
-              if nullable? do
+              if optional? do
                 # Do we add nil or do we remove them? a list of nils seeeeems bad. But is it
                 # better to not remove information...?
                 {:cont, [nil | acc]}

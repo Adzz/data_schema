@@ -7,7 +7,7 @@ defmodule DataSchema.MixProject do
     [
       app: :data_schema,
       version: @version,
-      elixir: "~> 1.12",
+      elixir: "~> 1.13",
       package: package(),
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),

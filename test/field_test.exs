@@ -17,7 +17,9 @@ defmodule DataSchema.FieldTest do
       assert DataSchema.to_struct(input, FieldErr) ==
                {:error,
                 %DataSchema.Errors{
-                  errors: [foo: "Field was marked as not null but was found to be null."]
+                  errors: [
+                    foo: "Field was required but value supplied is considered empty"
+                  ]
                 }}
 
       input = %{}
@@ -25,7 +27,9 @@ defmodule DataSchema.FieldTest do
       assert DataSchema.to_struct(input, FieldErr) ==
                {:error,
                 %DataSchema.Errors{
-                  errors: [foo: "Field was marked as not null but was found to be null."]
+                  errors: [
+                    foo: "Field was required but value supplied is considered empty"
+                  ]
                 }}
     end
 
@@ -47,7 +51,9 @@ defmodule DataSchema.FieldTest do
                 %DataSchema.Errors{
                   errors: [
                     agg: %DataSchema.Errors{
-                      errors: [foo: "Field was marked as not null but was found to be null."]
+                      errors: [
+                        foo: "Field was required but value supplied is considered empty"
+                      ]
                     }
                   ]
                 }}

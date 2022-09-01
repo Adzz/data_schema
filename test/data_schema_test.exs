@@ -35,6 +35,98 @@ defmodule DataSchemaTest do
     end
   end
 
+  describe "empty_values option" do
+    test "causes errors when making structs declared with values considered as empty (:field)" do
+      defmodule Wallet do
+        import DataSchema, only: [data_schema: 1]
+
+        data_schema(
+          field:
+            {:account_number, "account_number", &DataSchemaTest.to_stringg/1,
+             [optional?: false, empty_values: ["", nil, :undefined]]}
+        )
+      end
+
+      assert DataSchema.to_struct(%{account_number: ""}, Wallet) ==
+               {:error,
+                %DataSchema.Errors{
+                  errors: [
+                    account_number: "Field was required but value supplied is considered empty"
+                  ]
+                }}
+
+      assert DataSchema.to_struct(%{account_number: nil}, Wallet) ==
+               {:error,
+                %DataSchema.Errors{
+                  errors: [
+                    account_number: "Field was required but value supplied is considered empty"
+                  ]
+                }}
+
+      assert DataSchema.to_struct(%{account_number: :undefined}, Wallet) ==
+               {:error,
+                %DataSchema.Errors{
+                  errors: [
+                    account_number: "Field was required but value supplied is considered empty"
+                  ]
+                }}
+    end
+
+    test "causes errors when making structs declared with values considered as empty (:list_of)" do
+      defmodule Something do
+        import DataSchema, only: [data_schema: 1]
+
+        data_schema(
+          field:
+            {:required_array, "required_array", fn v -> {:ok, v} end,
+             [optional?: false, empty_values: [[], nil]]}
+        )
+      end
+
+      assert DataSchema.to_struct(%{required_array: []}, Something) ==
+               {:error,
+                %DataSchema.Errors{
+                  errors: [
+                    required_array: "Field was required but value supplied is considered empty"
+                  ]
+                }}
+
+      assert DataSchema.to_struct(%{required_array: nil}, Something) ==
+               {:error,
+                %DataSchema.Errors{
+                  errors: [
+                    required_array: "Field was required but value supplied is considered empty"
+                  ]
+                }}
+    end
+
+    test "causes errors when making structs declared with values considered as empty (:has_many)" do
+      defmodule Commentary do
+        import DataSchema, only: [data_schema: 1]
+
+        data_schema(
+          has_many: {:comments, "comments", Comment, [optional?: false, empty_values: [[], nil]]}
+        )
+      end
+
+      assert DataSchema.to_struct(%{required_array: []}, Commentary) ==
+               {:error,
+                %DataSchema.Errors{
+                  errors: [
+                    comments: "Field was required but value supplied is considered empty"
+                  ]
+                }}
+
+      assert DataSchema.to_struct(%{comments: nil}, Commentary) ==
+               {:error,
+                %DataSchema.Errors{
+                  errors: [
+                    comments: "Field was required but value supplied is considered empty"
+                  ]
+                }}
+    end
+  end
+
   describe "data_schema/1" do
     test "The default MapAccessor is used when no accessor is provided" do
       input = %{
@@ -374,7 +466,9 @@ defmodule DataSchemaTest do
                  %DataSchema.Errors{
                    errors: [
                      thing: %DataSchema.Errors{
-                       errors: [integer: "Field was marked as not null but was found to be null."]
+                       errors: [
+                         integer: "Field was required but value supplied is considered empty"
+                       ]
                      }
                    ]
                  }
@@ -387,7 +481,9 @@ defmodule DataSchemaTest do
                {
                  :error,
                  %DataSchema.Errors{
-                   errors: [thing: "Field was marked as not null but was found to be null."]
+                   errors: [
+                     thing: "Field was required but value supplied is considered empty"
+                   ]
                  }
                }
     end
@@ -422,7 +518,9 @@ defmodule DataSchemaTest do
                 %DataSchema.Errors{
                   errors: [
                     things: %DataSchema.Errors{
-                      errors: [thing: "Field was marked as not null but was found to be null."]
+                      errors: [
+                        thing: "Field was required but value supplied is considered empty"
+                      ]
                     }
                   ]
                 }}

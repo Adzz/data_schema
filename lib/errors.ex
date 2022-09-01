@@ -34,6 +34,15 @@ defmodule DataSchema.Errors do
     DataSchema.Errors.add_error(%DataSchema.Errors{}, {field, @non_null_error_message})
   end
 
+  @doc false
+  @empty_required_value_error_message "Field was required but value supplied is considered empty"
+  def empty_required_value_error(field) do
+    DataSchema.Errors.add_error(
+      %DataSchema.Errors{},
+      {field, @empty_required_value_error_message}
+    )
+  end
+
   @doc """
   Turns the DataSchema.Errors struct into a flattened error tuple of path to field and
   error message
