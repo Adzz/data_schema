@@ -430,7 +430,7 @@ MIX_ENV=docs mix docs
 ```elixir
 def deps do
   [
-    {:data_schema, "~> 0.3.2"}
+    {:data_schema, "~> 0.4.0"}
   ]
 end
 ```

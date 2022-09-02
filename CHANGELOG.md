@@ -1,5 +1,26 @@
 # Changelog for version 0.2.x
 
+## 0.4.0
+
+### Enhancement
+
+Added an option called `empty_values` which allows you to specify per field what should be considered empty.
+For example if you have a list of things you can supply an option like:
+
+```elixir
+defmodule Something do
+  import DataSchema, only: [data_schema: 1]
+
+  data_schema(
+    list_of: {:list, "list", StringType, optional?: false, empty_values: [[]]}
+  )
+end
+```
+
+To maintain backwards compatability `nil` is always considered "empty" but you can optionally add more.
+
+To support this we have changed the wording of some of the errors when the check fails.
+
 ## 0.3.2
 
 ### Bug Fix
