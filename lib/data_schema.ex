@@ -599,8 +599,8 @@ defmodule DataSchema do
           Keyword.get(field_opts, :optional?)
         )
 
-      {field_type, {field, paths, cast_fn, field_opts}}, struct ->
-        process_field({field_type, {field, paths, cast_fn, field_opts}}, struct, accessor, data)
+      schema_field, struct ->
+        process_field(schema_field, struct, accessor, data)
     end)
     |> case do
       {:error, error_message} -> {:error, error_message}
@@ -655,22 +655,7 @@ defmodule DataSchema do
       end
     end
 
-    case cast_and_validate(value, do_cast, empty_values, optional?) do
-      {:ok, struct} ->
-        {:cont, struct}
-
-      {:error, :empty_required_value} ->
-        {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
-
-      {:error, error} ->
-        {:halt, {:error, DataSchema.Errors.new({field, error})}}
-
-      :error ->
-        {:halt, {:error, DataSchema.Errors.default_error(field)}}
-
-      other_value ->
-        raise_incorrect_cast_function_error(field, other_value)
-    end
+    process_has_one(field, value, do_cast, empty_values, optional?)
   end
 
   defp process_field(
@@ -691,22 +676,7 @@ defmodule DataSchema do
       end
     end
 
-    case cast_and_validate(value, do_cast, empty_values, optional?) do
-      {:ok, struct} ->
-        {:cont, struct}
-
-      {:error, :empty_required_value} ->
-        {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
-
-      {:error, error} ->
-        {:halt, {:error, DataSchema.Errors.new({field, error})}}
-
-      :error ->
-        {:halt, {:error, DataSchema.Errors.default_error(field)}}
-
-      other_value ->
-        raise_incorrect_cast_function_error(field, other_value)
-    end
+    process_has_one(field, value, do_cast, empty_values, optional?)
   end
 
   defp process_field(
@@ -728,22 +698,7 @@ defmodule DataSchema do
         end
       end)
 
-    case cast_and_validate(values, do_cast, empty_values, optional?) do
-      {:ok, list} ->
-        {:cont, update_struct(struct, field, :lists.reverse(list))}
-
-      {:error, :empty_required_value} ->
-        {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
-
-      {:error, error} ->
-        {:halt, {:error, DataSchema.Errors.new({field, error})}}
-
-      :error ->
-        {:halt, {:error, DataSchema.Errors.default_error(field)}}
-
-      other_value ->
-        raise_incorrect_cast_function_error(field, other_value)
-    end
+    process_has_many(field, values, do_cast, struct, empty_values, optional?)
   end
 
   defp process_field(
@@ -765,22 +720,7 @@ defmodule DataSchema do
         end
       end)
 
-    case cast_and_validate(values, do_cast, empty_values, optional?) do
-      {:ok, list} ->
-        {:cont, update_struct(struct, field, :lists.reverse(list))}
-
-      {:error, :empty_required_value} ->
-        {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
-
-      {:error, error} ->
-        {:halt, {:error, DataSchema.Errors.new({field, error})}}
-
-      :error ->
-        {:halt, {:error, DataSchema.Errors.default_error(field)}}
-
-      other_value ->
-        raise_incorrect_cast_function_error(field, other_value)
-    end
+    process_has_many(field, values, do_cast, struct, empty_values, optional?)
   end
 
   defp process_field(
@@ -815,6 +755,7 @@ defmodule DataSchema do
         end
       end)
 
+    # More testing needed here!!
     case cast_and_validate(values, do_cast, empty_values, optional?) do
       {:ok, list} ->
         {:cont, update_struct(struct, field, :lists.reverse(list))}
@@ -832,6 +773,44 @@ defmodule DataSchema do
          {:ok, casted_value} <- cast_value.(value),
          {:ok, casted_value} <- validate_empty(casted_value, empty_values, optional?) do
       {:ok, casted_value}
+    end
+  end
+
+  defp process_has_many(field, values, do_cast, struct, empty_values, optional?) do
+    case cast_and_validate(values, do_cast, empty_values, optional?) do
+      {:ok, list} ->
+        {:cont, update_struct(struct, field, :lists.reverse(list))}
+
+      {:error, :empty_required_value} ->
+        {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
+
+      {:error, error} ->
+        {:halt, {:error, DataSchema.Errors.new({field, error})}}
+
+      :error ->
+        {:halt, {:error, DataSchema.Errors.default_error(field)}}
+
+      other_value ->
+        raise_incorrect_cast_function_error(field, other_value)
+    end
+  end
+
+  defp process_has_one(field, value, do_cast, empty_values, optional?) do
+    case cast_and_validate(value, do_cast, empty_values, optional?) do
+      {:ok, struct} ->
+        {:cont, struct}
+
+      {:error, :empty_required_value} ->
+        {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
+
+      {:error, error} ->
+        {:halt, {:error, DataSchema.Errors.new({field, error})}}
+
+      :error ->
+        {:halt, {:error, DataSchema.Errors.default_error(field)}}
+
+      other_value ->
+        raise_incorrect_cast_function_error(field, other_value)
     end
   end
 
