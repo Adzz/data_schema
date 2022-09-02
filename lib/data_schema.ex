@@ -547,7 +547,7 @@ defmodule DataSchema do
     to_struct(data, struct(struct, %{}), fields, accessor, opts)
   end
 
-  def to_struct(data, %{} = struct, fields, accessor, opts) when is_list(fields) do
+  def to_struct(data, %{} = struct, fields, accessor, _opts) when is_list(fields) do
     # Right now we fail as soon as we get an error. If this error is nested deep then we
     # generate a recursive error that points to the value that caused it. We can imagine
     # instead "collecting" errors - meaning continuing with struct creation to gather up
@@ -578,12 +578,11 @@ defmodule DataSchema do
           fields,
           accessor,
           data,
-          opts,
           field,
           cast_fn,
           aggregate,
           struct,
-          Keyword.get(field_opts, :optional?)
+          field_opts
         )
 
       {:aggregate, {field, fields, cast_fn, field_opts}}, struct when is_list(fields) ->
@@ -591,12 +590,11 @@ defmodule DataSchema do
           fields,
           accessor,
           data,
-          opts,
           field,
           cast_fn,
           %{},
           struct,
-          Keyword.get(field_opts, :optional?)
+          field_opts
         )
 
       schema_field, struct ->
@@ -768,9 +766,9 @@ defmodule DataSchema do
     end
   end
 
-  defp cast_and_validate(value, cast_value, empty_values, optional?) do
+  defp cast_and_validate(value, do_cast, empty_values, optional?) do
     with {:ok, value} <- validate_empty(value, empty_values, optional?),
-         {:ok, casted_value} <- cast_value.(value),
+         {:ok, casted_value} <- do_cast.(value),
          {:ok, casted_value} <- validate_empty(casted_value, empty_values, optional?) do
       {:ok, casted_value}
     end
@@ -814,22 +812,23 @@ defmodule DataSchema do
     end
   end
 
-  defp aggregate(fields, accessor, data, opts, field, cast_fn, aggregate, parent, nullable?) do
-    case to_struct(data, aggregate, fields, accessor, opts) do
+  defp aggregate(fields, accessor, data, field, cast_fn, aggregate, parent, field_opts) do
+    empty_values = Keyword.get(field_opts, :empty_values)
+    optional? = Keyword.get(field_opts, :optional?)
+
+    case to_struct(data, aggregate, fields, accessor, []) do
       {:error, %DataSchema.Errors{} = error} ->
         {:halt, {:error, DataSchema.Errors.new({field, error})}}
 
       {:ok, values_map} ->
-        case call_cast_fn(cast_fn, values_map) do
-          {:ok, nil} ->
-            if nullable? do
-              {:cont, update_struct(parent, field, nil)}
-            else
-              {:halt, {:error, DataSchema.Errors.null_error(field)}}
-            end
+        do_cast = &call_cast_fn(cast_fn, &1)
 
-          {:ok, value} ->
-            {:cont, update_struct(parent, field, value)}
+        case cast_and_validate(values_map, do_cast, empty_values, optional?) do
+          {:ok, casted_value} ->
+            {:cont, update_struct(parent, field, casted_value)}
+
+          {:error, :empty_required_value} ->
+            {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
 
           {:error, error} ->
             {:halt, {:error, DataSchema.Errors.new({field, error})}}
@@ -844,6 +843,8 @@ defmodule DataSchema do
   end
 
   defp validate_empty(value, empty_values, optional?) do
+    # Should have an is_empty? option that allows for user supplied callback
+    # so they can implement themselves what empty means? Rather than using == all the time.
     if value in empty_values and not optional? do
       {:error, :empty_required_value}
     else
