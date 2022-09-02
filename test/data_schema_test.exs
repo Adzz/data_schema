@@ -527,5 +527,64 @@ defmodule DataSchemaTest do
     end
   end
 
+  test "list of field that returns an empty value from the cast fn errors" do
+    schema = [
+      list_of: {:things, "a", fn x -> {:ok, x} end, empty_values: [[]]}
+    ]
+
+    input = %{"a" => []}
+    result = DataSchema.to_struct(input, %{}, schema, DataSchema.MapAccessor)
+
+    assert result ==
+             {:error,
+              %DataSchema.Errors{
+                errors: [things: "Field was required but value supplied is considered empty"]
+              }}
+  end
+
+  describe "empty aggregate tests" do
+    test "if casting an aggregate returns an empty value we error" do
+      schema = [
+        aggregate:
+          {:agg,
+           [
+             field: {:a, "a", &to_stringg/1},
+             field: {:b, "b", &to_stringg/1}
+           ], fn _ -> {:ok, %{}} end, empty_values: [%{}]}
+      ]
+
+      input = %{"a" => 1, "b" => 2}
+      result = DataSchema.to_struct(input, %{}, schema, DataSchema.MapAccessor)
+
+      assert result ==
+               {:error,
+                %DataSchema.Errors{
+                  errors: [agg: "Field was required but value supplied is considered empty"]
+                }}
+    end
+
+    test "if the resolution of aggregate is empty we error" do
+      schema = [
+        aggregate:
+          {:agg,
+           [
+             field: {:a, "a", &{:ok, &1}, optional?: true},
+             field: {:b, "b", &{:ok, &1}, optional?: true}
+             # This makes me realise that a function might be better. Though with aggregate
+             # your cast fn could implement the empty checks...
+           ], fn x -> {:ok, x} end, empty_values: [%{a: nil, b: nil}]}
+      ]
+
+      input = %{}
+      result = DataSchema.to_struct(input, %{}, schema, DataSchema.MapAccessor)
+
+      assert result ==
+               {:error,
+                %DataSchema.Errors{
+                  errors: [agg: "Field was required but value supplied is considered empty"]
+                }}
+    end
+  end
+
   # with options...
 end
