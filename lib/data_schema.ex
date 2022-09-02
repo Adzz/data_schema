@@ -79,6 +79,10 @@ defmodule DataSchema do
     the `@enforce_keys` for the struct. By default all fields are required but you can mark
     them as optional by setting this to `true`. This will also be checked when creating a
     struct with `DataSchema.to_struct/2` returning an error if the required field is null.
+    - `:empty_values` - allows you to define what values should be used as "empty" for a
+    given field. If either the value returned from the data accessor or the casted value are
+    equivalent to any element in this list, that field is deemed to be empty. Defaults to `[nil]`.
+
 
   For example:
       defmodule Sandwich do
@@ -88,6 +92,16 @@ defmodule DataSchema do
           field: {:type, "the_type", &{:ok, String.upcase(&1)}, optional?: true},
         ])
       end
+
+  And:
+      defmodule Sandwich do
+        require DataSchema
+
+        DataSchema.data_schema([
+          field: {:list, "list", &{:ok, &1}, optional?: true, empty_values: [[]]},
+        ])
+      end
+
 
   ### Examples
 

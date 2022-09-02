@@ -1,5 +1,11 @@
 # Changelog for version 0.2.x
 
+## 0.4.1
+
+### Enhancement
+
+Adds docs about the `empty_values` option.
+
 ## 0.4.0
 
 ### Enhancement

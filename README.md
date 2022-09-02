@@ -46,6 +46,10 @@ Available options are:
 the `@enforce_keys` for the struct. By default all fields are required but you can mark
 them as optional by setting this to `true`. This will also be checked when creating a
 struct with `DataSchema.to_struct/2` returning an error if the required field is null.
+* `:empty_values` - allows you to define what values should be used as "empty" for a
+given field. If either the value returned from the data accessor or the casted value are
+equivalent to any element in this list, that field is deemed to be empty. Defaults to `[nil]`,
+meaning nil is always considered "empty".
 
 For example:
 
@@ -53,7 +57,7 @@ For example:
       require DataSchema
 
       DataSchema.data_schema([
-        field: {:type, "the_type", &{:ok, String.upcase(&1)}, optional?: true},
+        field: {:type, "the_type", &{:ok, String.upcase(&1)}, optional?: true, empty_values: [nil]},
       ])
     end
 
@@ -430,7 +434,7 @@ MIX_ENV=docs mix docs
 ```elixir
 def deps do
   [
-    {:data_schema, "~> 0.4.0"}
+    {:data_schema, "~> 0.4.1"}
   ]
 end
 ```
