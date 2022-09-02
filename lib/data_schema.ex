@@ -559,13 +559,14 @@ defmodule DataSchema do
     default_opts = [optional?: false, empty_values: [nil]]
 
     fields
-    |> Enum.map(fn
-      {type, {field, schema_mod, cast_fn}} ->
-        {type, {field, schema_mod, cast_fn, default_opts}}
+    # We use reduce so we don't do an extra reverse (which we would if we used Enum.map)
+    |> Enum.reduce([], fn
+      {type, {field, schema_mod, cast_fn}}, acc ->
+        [{type, {field, schema_mod, cast_fn, default_opts}} | acc]
 
-      {type, {field, schema_mod, cast_fn, opts}} ->
+      {type, {field, schema_mod, cast_fn, opts}}, acc ->
         opts_with_defaults = Keyword.merge(default_opts, opts)
-        {type, {field, schema_mod, cast_fn, opts_with_defaults}}
+        [{type, {field, schema_mod, cast_fn, opts_with_defaults}} | acc]
     end)
     |> Enum.reduce_while(struct, fn
       {:aggregate, {field, schema_mod, cast_fn, field_opts}}, struct when is_atom(schema_mod) ->
