@@ -755,8 +755,11 @@ defmodule DataSchema do
 
     # More testing needed here!!
     case cast_and_validate(values, do_cast, empty_values, optional?) do
-      {:ok, list} ->
+      {:ok, list} when is_list(list) ->
         {:cont, update_struct(struct, field, :lists.reverse(list))}
+
+      {:ok, empty_value} ->
+        {:cont, update_struct(struct, field, empty_value)}
 
       {:error, :empty_required_value} ->
         {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
@@ -766,24 +769,13 @@ defmodule DataSchema do
     end
   end
 
-  defp cast_and_validate(value, do_cast, empty_values, optional?) do
-    with {:ok, value} <- validate_empty(value, empty_values, optional?),
-         {:empty?, false} <- {:empty?, value in empty_values},
-         {:ok, casted_value} <- do_cast.(value),
-         {:ok, casted_value} <- validate_empty(casted_value, empty_values, optional?) do
-      {:ok, casted_value}
-    else
-      # This is when the value is empty, but when it is allowed to be. In that case we
-      # don't need to call cast.
-      {:empty?, true} -> {:ok, value}
-      error -> error
-    end
-  end
-
   defp process_has_many(field, values, do_cast, struct, empty_values, optional?) do
     case cast_and_validate(values, do_cast, empty_values, optional?) do
       {:ok, list} when is_list(list) ->
         {:cont, update_struct(struct, field, :lists.reverse(list))}
+
+      {:ok, empty_value} ->
+        {:cont, update_struct(struct, field, empty_value)}
 
       {:error, :empty_required_value} ->
         {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
@@ -845,6 +837,21 @@ defmodule DataSchema do
           other_value ->
             raise_incorrect_cast_function_error(field, other_value)
         end
+    end
+  end
+
+  defp cast_and_validate(value, do_cast, empty_values, optional?) do
+    with {:ok, value} <- validate_empty(value, empty_values, optional?),
+         {:empty?, false} <- {:empty?, value in empty_values},
+         {:ok, casted_value} <- do_cast.(value),
+         {:ok, casted_value} <- validate_empty(casted_value, empty_values, optional?) do
+      {:ok, casted_value}
+    else
+      # This is when the value is empty, but when it is allowed to be. In that case we
+      # don't need to call cast. We know it's allowed because it comes after a successful
+      # validate_empty call in the with body.
+      {:empty?, true} -> {:ok, value}
+      error -> error
     end
   end
 
