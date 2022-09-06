@@ -35,6 +35,21 @@ defmodule DataSchemaTest do
     end
   end
 
+  defmodule MockAccessor do
+    def has_one(_, _), do: nil
+  end
+
+  test "when has one returns nil we don't call the cast fn with nil." do
+    schema = [
+      has_one:
+        {:thing, "a", {%{}, [field: {:a, "a", &{:ok, &1}}]}, optional?: true, empty_values: [nil]}
+    ]
+
+    input = %{"a" => :empty}
+    result = DataSchema.to_struct(input, %{}, schema, MockAccessor)
+    assert result == {:ok, %{thing: nil}}
+  end
+
   describe "empty_values option" do
     test "causes errors when making structs declared with values considered as empty (:field)" do
       defmodule Wallet do
