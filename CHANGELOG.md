@@ -1,5 +1,11 @@
 # Changelog for version 0.2.x
 
+## 0.4.3
+
+### Bug Fix
+
+The previous version introduced a small bug for list_of fields. If a list_of field did not provide a default then we would error (if the field was optional _and_ empty). This is now fixed.
+
 ## 0.4.2
 
 ### Enhancement
