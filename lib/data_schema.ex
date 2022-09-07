@@ -751,13 +751,13 @@ defmodule DataSchema do
     values = accessor.list_of(data, path)
     empty_values = Keyword.get(opts, :empty_values)
     optional? = Keyword.get(opts, :optional?)
-    default_value = Keyword.get(opts, :default)
+    default = Keyword.get(opts, :default, :no_default)
 
     do_cast =
       &Enum.reduce_while(&1, {:ok, []}, fn value, {:ok, acc} ->
         cast_value = fn val -> call_cast_fn(cast_fn, val) end
 
-        case cast_and_validate(value, cast_value, empty_values, optional?, default_value) do
+        case cast_and_validate(value, cast_value, empty_values, optional?, default) do
           {:ok, value} ->
             {:cont, {:ok, [value | acc]}}
 
@@ -776,7 +776,7 @@ defmodule DataSchema do
       end)
 
     # More testing needed here!!
-    case cast_and_validate(values, do_cast, empty_values, optional?, default_value) do
+    case cast_and_validate(values, do_cast, empty_values, optional?, default) do
       {:ok, list} when is_list(list) ->
         {:cont, update_struct(struct, field, :lists.reverse(list))}
 
