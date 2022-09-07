@@ -853,34 +853,35 @@ defmodule DataSchema do
   end
 
   defp cast_and_validate(value, do_cast, empty_values, optional?, default_value) do
-    with {:ok, value} <- validate_empty(value, empty_values, optional?),
-         {:empty?, false} <- {:empty?, value in empty_values},
+    with {:empty?, false} <- {:empty?, value in empty_values},
          {:ok, casted_value} <- do_cast.(value),
-         {:ok, casted_value} <- validate_empty(casted_value, empty_values, optional?) do
+         {:empty?, _, false} <- {:empty?, casted_value, casted_value in empty_values} do
       {:ok, casted_value}
     else
-      # This is when the value is empty, but when it is allowed to be. In that case we
-      # don't need to call cast. We know it's allowed because it comes after a successful
-      # validate_empty call in the with body.
-      {:empty?, true} ->
-        if default_value == :no_default do
-          {:ok, value}
+      {:empty?, casted_value, true} ->
+        if optional? do
+          if default_value == :no_default do
+            {:ok, casted_value}
+          else
+            {:ok, default_value.()}
+          end
         else
-          {:ok, default_value.()}
+          {:error, :empty_required_value}
+        end
+
+      {:empty?, true} ->
+        if optional? do
+          if default_value == :no_default do
+            {:ok, value}
+          else
+            {:ok, default_value.()}
+          end
+        else
+          {:error, :empty_required_value}
         end
 
       error ->
         error
-    end
-  end
-
-  defp validate_empty(value, empty_values, optional?) do
-    # Should have an is_empty? option that allows for user supplied callback
-    # so they can implement themselves what empty means? Rather than using == all the time.
-    if value in empty_values and not optional? do
-      {:error, :empty_required_value}
-    else
-      {:ok, value}
     end
   end
 

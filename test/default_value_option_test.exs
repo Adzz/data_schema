@@ -78,5 +78,17 @@ defmodule DefaultValueOptionTest do
       result = DataSchema.to_struct(input, %{}, schema, DataSchema.MapAccessor)
       assert result == {:ok, %{agg: %{a: :not_there}}}
     end
+
+    test "when cast fn returns an empty value we use the default" do
+      schema = [
+        field:
+          {:a, "a", fn "not empty" -> {:ok, nil} end,
+           empty_values: [nil], default: fn -> :not_there end, optional?: true}
+      ]
+
+      input = %{"a" => "not empty"}
+      result = DataSchema.to_struct(input, %{}, schema, DataSchema.MapAccessor)
+      assert result == {:ok, %{a: :not_there}}
+    end
   end
 end
