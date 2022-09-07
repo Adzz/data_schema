@@ -1,5 +1,13 @@
 # Changelog for version 0.2.x
 
+## 0.4.2
+
+### Enhancement
+
+Adds an option called `:default` which lets the user supply a function which will be called if the field is found to be empty and it's allowed to be. The result of the function is used as the fields value in that case.
+
+We also tweaked how the casting works and we now do not send empty values to the casting function. This was happening for has_one and has_many already, but this makes it all more consistent.
+
 ## 0.4.1
 
 ### Enhancement
