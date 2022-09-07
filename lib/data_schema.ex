@@ -82,7 +82,9 @@ defmodule DataSchema do
     - `:empty_values` - allows you to define what values should be used as "empty" for a
     given field. If either the value returned from the data accessor or the casted value are
     equivalent to any element in this list, that field is deemed to be empty. Defaults to `[nil]`.
-
+    - `:default` - specifies a 0 arity function that will be called to produce a default value for a field
+    when casting. This function will only be called if a field is found to be empty AND optional.
+    If it's empty and not optional we will error.
 
   For example:
       defmodule Sandwich do
@@ -102,6 +104,15 @@ defmodule DataSchema do
         ])
       end
 
+  And:
+
+      defmodule Sandwich do
+        require DataSchema
+        @options [optional?: true, empty_values: [nil], default: &DateTime.utc_now/0]
+        DataSchema.data_schema([
+          field: {:created_at, "inserted_at", &{:ok, &1}, @options},
+        ])
+      end
 
   ### Examples
 
@@ -150,6 +161,8 @@ defmodule DataSchema do
         def __data_accessor, do: DataSchema.MapAccessor
       end
 
+      # TODO - add a validate options thing that checks for names of options and errors
+      # if a field option is invalid. This would be a handy compile time error.
       @enforce_keys Enum.reduce(
                       unquote(fields),
                       [],
@@ -477,7 +490,7 @@ defmodule DataSchema do
   defined in the schema from the source data recursively.
 
   We essentially visit each field in the schema and extract the data the field points to
-  from the sauce data, passing it to the field's casting function before setting the
+  from the source data, passing it to the field's casting function before setting the
   result of that as the value on the struct.
 
   This function takes a simple approach to creating the struct - whatever you return from
@@ -629,9 +642,11 @@ defmodule DataSchema do
     value = accessor.field(data, path)
     empty_values = Keyword.get(opts, :empty_values)
     optional? = Keyword.get(opts, :optional?)
+    default = Keyword.get(opts, :default, :no_default)
+
     do_cast = &call_cast_fn(cast_fn, &1)
 
-    case cast_and_validate(value, do_cast, empty_values, optional?) do
+    case cast_and_validate(value, do_cast, empty_values, optional?, default) do
       {:ok, value} ->
         {:cont, update_struct(struct, field, value)}
 
@@ -659,8 +674,10 @@ defmodule DataSchema do
 
     empty_values = Keyword.get(opts, :empty_values)
     optional? = Keyword.get(opts, :optional?)
+    default = Keyword.get(opts, :default, :no_default)
+
     do_cast = &to_struct(&1, cast_module, inline_fields, accessor, [])
-    process_has_one(field, value, do_cast, struct, empty_values, optional?)
+    process_has_one(field, value, do_cast, struct, empty_values, optional?, default)
   end
 
   defp process_field(
@@ -673,8 +690,10 @@ defmodule DataSchema do
 
     empty_values = Keyword.get(opts, :empty_values)
     optional? = Keyword.get(opts, :optional?)
+    default = Keyword.get(opts, :default, :no_default)
+
     do_cast = &to_struct(&1, cast_module)
-    process_has_one(field, value, do_cast, struct, empty_values, optional?)
+    process_has_one(field, value, do_cast, struct, empty_values, optional?, default)
   end
 
   defp process_field(
@@ -687,6 +706,7 @@ defmodule DataSchema do
 
     empty_values = Keyword.get(opts, :empty_values)
     optional? = Keyword.get(opts, :optional?)
+    default = Keyword.get(opts, :default, :no_default)
 
     do_cast =
       &Enum.reduce_while(&1, {:ok, []}, fn value, {:ok, acc} ->
@@ -696,7 +716,7 @@ defmodule DataSchema do
         end
       end)
 
-    process_has_many(field, values, do_cast, struct, empty_values, optional?)
+    process_has_many(field, values, do_cast, struct, empty_values, optional?, default)
   end
 
   defp process_field(
@@ -709,6 +729,7 @@ defmodule DataSchema do
 
     empty_values = Keyword.get(opts, :empty_values)
     optional? = Keyword.get(opts, :optional?)
+    default = Keyword.get(opts, :default, :no_default)
 
     do_cast =
       &Enum.reduce_while(&1, {:ok, []}, fn value, {:ok, acc} ->
@@ -718,7 +739,7 @@ defmodule DataSchema do
         end
       end)
 
-    process_has_many(field, values, do_cast, struct, empty_values, optional?)
+    process_has_many(field, values, do_cast, struct, empty_values, optional?, default)
   end
 
   defp process_field(
@@ -730,12 +751,13 @@ defmodule DataSchema do
     values = accessor.list_of(data, path)
     empty_values = Keyword.get(opts, :empty_values)
     optional? = Keyword.get(opts, :optional?)
+    default_value = Keyword.get(opts, :default)
 
     do_cast =
       &Enum.reduce_while(&1, {:ok, []}, fn value, {:ok, acc} ->
         cast_value = fn val -> call_cast_fn(cast_fn, val) end
 
-        case cast_and_validate(value, cast_value, empty_values, optional?) do
+        case cast_and_validate(value, cast_value, empty_values, optional?, default_value) do
           {:ok, value} ->
             {:cont, {:ok, [value | acc]}}
 
@@ -754,7 +776,7 @@ defmodule DataSchema do
       end)
 
     # More testing needed here!!
-    case cast_and_validate(values, do_cast, empty_values, optional?) do
+    case cast_and_validate(values, do_cast, empty_values, optional?, default_value) do
       {:ok, list} when is_list(list) ->
         {:cont, update_struct(struct, field, :lists.reverse(list))}
 
@@ -769,13 +791,13 @@ defmodule DataSchema do
     end
   end
 
-  defp process_has_many(field, values, do_cast, struct, empty_values, optional?) do
-    case cast_and_validate(values, do_cast, empty_values, optional?) do
+  defp process_has_many(field, values, do_cast, struct, empty_values, optional?, default_value) do
+    case cast_and_validate(values, do_cast, empty_values, optional?, default_value) do
       {:ok, list} when is_list(list) ->
         {:cont, update_struct(struct, field, :lists.reverse(list))}
 
-      {:ok, empty_value} ->
-        {:cont, update_struct(struct, field, empty_value)}
+      {:ok, empty_or_default_value} ->
+        {:cont, update_struct(struct, field, empty_or_default_value)}
 
       {:error, :empty_required_value} ->
         {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
@@ -791,8 +813,8 @@ defmodule DataSchema do
     end
   end
 
-  defp process_has_one(field, value, do_cast, struct, empty_values, optional?) do
-    case cast_and_validate(value, do_cast, empty_values, optional?) do
+  defp process_has_one(field, value, do_cast, struct, empty_values, optional?, default) do
+    case cast_and_validate(value, do_cast, empty_values, optional?, default) do
       {:ok, casted} ->
         {:cont, update_struct(struct, field, casted)}
 
@@ -813,6 +835,7 @@ defmodule DataSchema do
   defp aggregate(fields, accessor, data, field, cast_fn, aggregate, parent, field_opts) do
     empty_values = Keyword.get(field_opts, :empty_values)
     optional? = Keyword.get(field_opts, :optional?)
+    default = Keyword.get(field_opts, :default, :no_default)
 
     case to_struct(data, aggregate, fields, accessor, []) do
       {:error, %DataSchema.Errors{} = error} ->
@@ -821,7 +844,7 @@ defmodule DataSchema do
       {:ok, values_map} ->
         do_cast = &call_cast_fn(cast_fn, &1)
 
-        case cast_and_validate(values_map, do_cast, empty_values, optional?) do
+        case cast_and_validate(values_map, do_cast, empty_values, optional?, default) do
           {:ok, casted_value} ->
             {:cont, update_struct(parent, field, casted_value)}
 
@@ -840,28 +863,36 @@ defmodule DataSchema do
     end
   end
 
-  defp cast_and_validate(value, do_cast, empty_values, optional?) do
-    with {:ok, value} <- validate_empty(value, empty_values, optional?),
-         {:empty?, false} <- {:empty?, value in empty_values},
+  defp cast_and_validate(value, do_cast, empty_values, optional?, default_value) do
+    with {:empty?, false} <- {:empty?, value in empty_values},
          {:ok, casted_value} <- do_cast.(value),
-         {:ok, casted_value} <- validate_empty(casted_value, empty_values, optional?) do
+         {:empty?, _, false} <- {:empty?, casted_value, casted_value in empty_values} do
       {:ok, casted_value}
     else
-      # This is when the value is empty, but when it is allowed to be. In that case we
-      # don't need to call cast. We know it's allowed because it comes after a successful
-      # validate_empty call in the with body.
-      {:empty?, true} -> {:ok, value}
-      error -> error
-    end
-  end
+      {:empty?, casted_value, true} ->
+        if optional? do
+          if default_value == :no_default do
+            {:ok, casted_value}
+          else
+            {:ok, default_value.()}
+          end
+        else
+          {:error, :empty_required_value}
+        end
 
-  defp validate_empty(value, empty_values, optional?) do
-    # Should have an is_empty? option that allows for user supplied callback
-    # so they can implement themselves what empty means? Rather than using == all the time.
-    if value in empty_values and not optional? do
-      {:error, :empty_required_value}
-    else
-      {:ok, value}
+      {:empty?, true} ->
+        if optional? do
+          if default_value == :no_default do
+            {:ok, value}
+          else
+            {:ok, default_value.()}
+          end
+        else
+          {:error, :empty_required_value}
+        end
+
+      error ->
+        error
     end
   end
 

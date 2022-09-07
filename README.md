@@ -50,6 +50,9 @@ struct with `DataSchema.to_struct/2` returning an error if the required field is
 given field. If either the value returned from the data accessor or the casted value are
 equivalent to any element in this list, that field is deemed to be empty. Defaults to `[nil]`,
 meaning nil is always considered "empty".
+* `:default` - specifies a 0 arity function that will be called to produce a default value for a field
+when casting. This function will only be called if a field is found to be empty AND optional.
+If it's empty and not optional we will error.
 
 For example:
 
@@ -60,6 +63,25 @@ For example:
         field: {:type, "the_type", &{:ok, String.upcase(&1)}, optional?: true, empty_values: [nil]},
       ])
     end
+
+  And:
+      defmodule Sandwich do
+        require DataSchema
+
+        DataSchema.data_schema([
+          field: {:list, "list", &{:ok, &1}, optional?: true, empty_values: [[]]},
+        ])
+      end
+
+  And:
+
+      defmodule Sandwich do
+        require DataSchema
+        @options [optional?: true, empty_values: [nil], default: &DateTime.utc_now/0]
+        DataSchema.data_schema([
+          field: {:created_at, "inserted_at", &{:ok, &1}, @options},
+        ])
+      end
 
 To see this better let's look at a very simple example. Assume our input data looks like this:
 
