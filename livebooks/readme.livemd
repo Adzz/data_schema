@@ -418,7 +418,7 @@ Accepts an data schema module and some source data and attempts to create the st
 defined in the schema from the source data recursively.
 
 We essentially visit each field in the schema and extract the data the field points to
-from the sauce data, passing it to the field's casting function before setting the
+from the source data, passing it to the field's casting function before setting the
 result of that as the value on the struct.
 
 This function takes a simple approach to creating the struct - whatever you return from
