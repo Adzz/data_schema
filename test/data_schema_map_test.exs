@@ -25,7 +25,12 @@ defmodule DataSchemaMapTest do
     end
 
     data_schema(
-      field: {:content, "content", DataSchema.String},
+      field:
+        {:content, "content",
+         fn
+           "raise" -> raise "nope"
+           x -> DataSchema.String.cast(x)
+         end},
       has_many: {:comments, "comments", Comment},
       has_one: {:draft, "draft", DraftPost},
       aggregate: {:post_datetime, DateTime, &BlogPost.to_datetime/1}
@@ -97,8 +102,39 @@ defmodule DataSchemaMapTest do
       {:ok, blog} = DataSchema.to_struct(source_data(), BlogPost)
 
       assert blog.__struct__ == DataSchemaMapTest.BlogPost
-
       assert blog.draft == %DataSchemaMapTest.DraftPost{content: "This is a draft blog post"}
+    end
+
+    test "when a cast fn raises we capture that and re-raise" do
+      source_data = %{
+        "content" => "raise",
+        "comments" => [%{"text" => "This is a comment"}, %{"text" => "This is another comment"}],
+        "draft" => %{"content" => "This is a draft blog post"},
+        "date" => "2021-11-11",
+        "time" => "14:00:00",
+        "metadata" => %{"rating" => 0}
+      }
+
+      message = """
+      \n  ** (RuntimeError)
+
+      Error when casting field:
+
+        field: {:content, "content", #Function<0.80199311/1 in DataSchemaMapTest.BlogPost.__data_schema_fields/0>},
+
+      The casting function raised the following error:
+
+        RuntimeError
+
+      with message:
+
+        "nope"
+
+      """
+
+      assert_raise(DataSchema.CastFunctionError, message, fn ->
+        DataSchema.to_struct(source_data, BlogPost)
+      end)
     end
   end
 

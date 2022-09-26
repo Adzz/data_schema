@@ -144,6 +144,8 @@ defmodule DataSchema do
         fillings: ["fake stake", "sauce", "sweetcorn"],
       }
   """
+  # TODO - add a validate options thing that checks for names of options and errors
+  # if a field option is invalid. This would be a handy compile time error.
   defmacro data_schema(fields) do
     quote do
       @doc false
@@ -161,8 +163,6 @@ defmodule DataSchema do
         def __data_accessor, do: DataSchema.MapAccessor
       end
 
-      # TODO - add a validate options thing that checks for names of options and errors
-      # if a field option is invalid. This would be a handy compile time error.
       @enforce_keys Enum.reduce(
                       unquote(fields),
                       [],
@@ -513,31 +513,46 @@ defmodule DataSchema do
       # => Outputs the following:
       %Foo{a_rocket: "enables space travel"}
   """
-  def to_struct(data, %schema{}) do
-    to_struct(data, schema, [])
-  end
-
+  # TODO check out the @after_verify callback in Elixir v1.14
   def to_struct(data, schema) do
     to_struct(data, schema, [])
   end
 
-  def to_struct(data, %schema{}, opts) do
-    to_struct(data, schema, opts)
+  def to_struct(data, %schema{} = struct, opts) do
+    if is_compile_time_schema?(schema) do
+      fields = schema.__data_schema_fields()
+      accessor = schema.__data_accessor()
+      to_struct(data, struct, fields, accessor, opts)
+    else
+      raise "Provided schema is not a valid DataSchema: #{inspect(schema)}"
+    end
   end
 
   def to_struct(data, schema, opts) when is_atom(schema) do
-    if Code.ensure_loaded?(schema) && !function_exported?(schema, :__data_schema_fields, 0) do
+    if is_compile_time_schema?(schema) do
+      fields = schema.__data_schema_fields()
+      accessor = schema.__data_accessor()
+      struct = struct(schema, %{})
+      to_struct(data, struct, fields, accessor, opts)
+    else
       raise "Provided schema is not a valid DataSchema: #{inspect(schema)}"
     end
-
-    fields = schema.__data_schema_fields()
-    accessor = schema.__data_accessor()
-    struct = struct(schema, %{})
-    to_struct(data, struct, fields, accessor, opts)
   end
 
   def to_struct(data, struct, fields, accessor) do
     to_struct(data, struct, fields, accessor, [])
+  end
+
+  defp is_compile_time_schema?(schema) when is_atom(schema) do
+    Code.ensure_loaded?(schema) && function_exported?(schema, :__data_schema_fields, 0)
+  end
+
+  defp is_compile_time_schema?(%schema{}) do
+    is_compile_time_schema?(schema)
+  end
+
+  defp is_compile_time_schema?(%{}) do
+    false
   end
 
   @doc """
@@ -586,46 +601,78 @@ defmodule DataSchema do
     default_opts = [optional?: false, empty_values: [nil]]
 
     fields
-    # We use reduce so we don't do an extra reverse (which we would if we used Enum.map)
-    |> Enum.reduce([], fn
-      {type, {field, schema_mod, cast_fn}}, acc ->
-        [{type, {field, schema_mod, cast_fn, default_opts}} | acc]
-
-      {type, {field, schema_mod, cast_fn, opts}}, acc ->
-        opts_with_defaults = Keyword.merge(default_opts, opts)
-        [{type, {field, schema_mod, cast_fn, opts_with_defaults}} | acc]
-    end)
     |> Enum.reduce_while(struct, fn
-      {:aggregate, {field, schema_mod, cast_fn, field_opts}}, struct when is_atom(schema_mod) ->
+      {:aggregate, {field, schema_mod, cast_fn}} = original_field, struct
+      when is_atom(schema_mod) ->
         fields = schema_mod.__data_schema_fields()
         accessor = schema_mod.__data_accessor()
         aggregate = struct(schema_mod, %{})
 
         aggregate(
-          fields,
+          {field, cast_fn, default_opts},
           accessor,
           data,
-          field,
-          cast_fn,
           aggregate,
           struct,
-          field_opts
+          fields,
+          original_field
         )
 
-      {:aggregate, {field, fields, cast_fn, field_opts}}, struct when is_list(fields) ->
+      {:aggregate, {field, schema_mod, cast_fn, field_opts}} = original_field, struct
+      when is_atom(schema_mod) ->
+        fields = schema_mod.__data_schema_fields()
+        accessor = schema_mod.__data_accessor()
+        aggregate = struct(schema_mod, %{})
+        field_opts = Keyword.merge(default_opts, field_opts)
+
         aggregate(
-          fields,
+          {field, cast_fn, field_opts},
           accessor,
           data,
-          field,
-          cast_fn,
-          %{},
+          aggregate,
           struct,
-          field_opts
+          fields,
+          original_field
         )
 
-      schema_field, struct ->
-        process_field(schema_field, struct, accessor, data)
+      {:aggregate, {field, fields, cast_fn}} = original_field, struct when is_list(fields) ->
+        aggregate(
+          {field, cast_fn, default_opts},
+          accessor,
+          data,
+          %{},
+          struct,
+          fields,
+          original_field
+        )
+
+      {:aggregate, {field, fields, cast_fn, field_opts}} = original_field, struct
+      when is_list(fields) ->
+        # User supplied take precedence
+        field_opts = Keyword.merge(default_opts, field_opts)
+
+        aggregate(
+          {field, cast_fn, field_opts},
+          accessor,
+          data,
+          %{},
+          struct,
+          fields,
+          original_field
+        )
+
+      {type, {field, path, cast, opts}} = schema_field, struct ->
+        opts = Keyword.merge(default_opts, opts)
+        process_field({type, {field, path, cast, opts}}, struct, accessor, data, schema_field)
+
+      {type, {field, path, cast}} = schema_field, struct ->
+        process_field(
+          {type, {field, path, cast, default_opts}},
+          struct,
+          accessor,
+          data,
+          schema_field
+        )
     end)
     |> case do
       {:error, error_message} -> {:error, error_message}
@@ -637,14 +684,15 @@ defmodule DataSchema do
          {:field, {field, path, cast_fn, opts}},
          struct,
          accessor,
-         data
+         data,
+         original_field
        ) do
     value = accessor.field(data, path)
     empty_values = Keyword.get(opts, :empty_values)
     optional? = Keyword.get(opts, :optional?)
     default = Keyword.get(opts, :default, :no_default)
 
-    do_cast = &call_cast_fn(cast_fn, &1)
+    do_cast = &call_cast_fn(cast_fn, &1, original_field)
 
     case cast_and_validate(value, do_cast, empty_values, optional?, default) do
       {:ok, value} ->
@@ -668,7 +716,8 @@ defmodule DataSchema do
          {:has_one, {field, path, {cast_module, inline_fields}, opts}},
          struct,
          accessor,
-         data
+         data,
+         _original_field
        ) do
     value = accessor.has_one(data, path)
 
@@ -684,7 +733,8 @@ defmodule DataSchema do
          {:has_one, {field, path, cast_module, opts}},
          struct,
          accessor,
-         data
+         data,
+         _original_field
        ) do
     value = accessor.has_one(data, path)
 
@@ -700,7 +750,8 @@ defmodule DataSchema do
          {:has_many, {field, path, {cast_module, inline_fields}, opts}},
          struct,
          accessor,
-         data
+         data,
+         _original_field
        ) do
     values = accessor.has_many(data, path)
 
@@ -723,7 +774,8 @@ defmodule DataSchema do
          {:has_many, {field, path, cast_module, opts}},
          struct,
          accessor,
-         data
+         data,
+         _original_field
        ) do
     values = accessor.has_many(data, path)
 
@@ -746,7 +798,8 @@ defmodule DataSchema do
          {:list_of, {field, path, cast_fn, opts}},
          struct,
          accessor,
-         data
+         data,
+         original_field
        ) do
     values = accessor.list_of(data, path)
     empty_values = Keyword.get(opts, :empty_values)
@@ -755,7 +808,7 @@ defmodule DataSchema do
 
     do_cast =
       &Enum.reduce_while(&1, {:ok, []}, fn value, {:ok, acc} ->
-        cast_value = fn val -> call_cast_fn(cast_fn, val) end
+        cast_value = fn val -> call_cast_fn(cast_fn, val, original_field) end
 
         case cast_and_validate(value, cast_value, empty_values, optional?, default) do
           {:ok, value} ->
@@ -832,18 +885,26 @@ defmodule DataSchema do
     end
   end
 
-  defp aggregate(fields, accessor, data, field, cast_fn, aggregate, parent, field_opts) do
+  defp aggregate(
+         {field, cast_fn, field_opts},
+         accessor,
+         data,
+         aggregate,
+         parent,
+         fields,
+         original_field
+       ) do
     empty_values = Keyword.get(field_opts, :empty_values)
     optional? = Keyword.get(field_opts, :optional?)
     default = Keyword.get(field_opts, :default, :no_default)
+
+    do_cast = &call_cast_fn(cast_fn, &1, original_field)
 
     case to_struct(data, aggregate, fields, accessor, []) do
       {:error, %DataSchema.Errors{} = error} ->
         {:halt, {:error, DataSchema.Errors.new({field, error})}}
 
       {:ok, values_map} ->
-        do_cast = &call_cast_fn(cast_fn, &1)
-
         case cast_and_validate(values_map, do_cast, empty_values, optional?, default) do
           {:ok, casted_value} ->
             {:cont, update_struct(parent, field, casted_value)}
@@ -918,10 +979,59 @@ defmodule DataSchema do
     Map.put(map, field, item)
   end
 
-  # This just lets us use either a module name for the data type OR a one arity fn.
-  defp call_cast_fn({module, fun, args}, value), do: apply(module, fun, [value | args])
-  defp call_cast_fn(module, value) when is_atom(module), do: module.cast(value)
-  defp call_cast_fn(fun, value) when is_function(fun, 1), do: fun.(value)
+  defp call_cast_fn({module, fun, args}, value, original_field) do
+    try do
+      apply(module, fun, [value | args])
+    rescue
+      error ->
+        message = error_message(original_field, error)
+        reraise DataSchema.CastFunctionError, [message: message], __STACKTRACE__
+    end
+  end
+
+  defp call_cast_fn(module, value, original_field) when is_atom(module) do
+    try do
+      module.cast(value)
+    rescue
+      error ->
+        message = error_message(original_field, error)
+        reraise DataSchema.CastFunctionError, [message: message], __STACKTRACE__
+    end
+  end
+
+  defp call_cast_fn(fun, value, original_field) when is_function(fun, 1) do
+    try do
+      fun.(value)
+    rescue
+      error ->
+        message = error_message(original_field, error)
+
+        reraise DataSchema.CastFunctionError, [message: message], __STACKTRACE__
+    end
+  end
+
+  # It would be much nicer if we could print out exactly what the original field looked
+  # like in the source code butwe have to fallback to inspect - meaning functions would
+  # look a bit shit. Ah well.
+  defp error_message({:field, original_field}, error) do
+    error_struct = error.__struct__
+      """
+      \n  ** (#{inspect(error_struct)})
+
+      Error when casting field:
+
+        field: #{inspect(original_field)},
+
+      The casting function raised the following error:
+
+        #{inspect(error_struct)}
+
+      with message:
+
+        #{inspect(error_struct.message(error))}
+
+      """
+  end
 
   @doc """
        A private function that aims to return a flat list of all of the absolute paths
