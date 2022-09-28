@@ -1,7 +1,7 @@
 defmodule DataSchema.MixProject do
   use Mix.Project
 
-  @version "0.4.3"
+  @version "0.5.0"
   @source_url "https://github.com/Adzz/data_schema"
   def project do
     [

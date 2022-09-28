@@ -1,5 +1,44 @@
 # Changelog for version 0.2.x
 
+## 0.5.0
+
+### Breaking Change
+
+DataSchema now wraps the call to  all cast functions in a try / rescue. We catch any unexpected raises and wrap them to provide much richer information about which field in the schema failed casting.
+
+The error that was caught is wrapped so you could still match on that error if you needed like so:
+
+```elixir
+try do
+  DataSchema.to_struct(my_input, MySchema)
+rescue
+  %DataSchema.CastFunctionError{wrapped_error: %RuntimeError{}} ->
+    Logger.error("Expected Runtime Error")
+  error ->
+    reraise error, __STACKTRACE__
+end
+```
+
+An example of the error you might get is:
+
+```sh
+ ** (DataSchema.CastFunctionError)
+
+ Unexpected error when casting value "my_value"
+ for field :service_refs in schema My.Deeply.Nested.Schema
+
+ Full path to field was:
+
+       Field  :service_refs in My.Deeply.Nested.Schema
+ Under Field  :fare_details in My.Less.Nested.Schema
+ Under Field  :items in My.Even.Less.Nested.Schema
+ Under Field  :order in My.Parent.Nested.Schema
+
+ The casting function raised the following error:
+
+ ** (RuntimeError) oh no!
+```
+
 ## 0.4.3
 
 ### Bug Fix
