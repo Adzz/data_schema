@@ -7,6 +7,7 @@ defmodule DataSchema do
              |> List.first()
 
   @available_types [:field, :has_one, :has_many, :aggregate, :list_of]
+  alias DataSchema.CastFunctionError
 
   @doc """
   Accepts a the module of a compile time schema and will expand it into a runtime schema
@@ -513,16 +514,18 @@ defmodule DataSchema do
       # => Outputs the following:
       %Foo{a_rocket: "enables space travel"}
   """
-  # TODO check out the @after_verify callback in Elixir v1.14
   def to_struct(data, schema) do
-    to_struct(data, schema, [])
+    do_to_struct(data, schema, [])
+    |> unwrap()
   end
 
   def to_struct(data, %schema{} = struct, opts) do
     if is_compile_time_schema?(schema) do
       fields = schema.__data_schema_fields()
       accessor = schema.__data_accessor()
-      to_struct(data, struct, fields, accessor, opts)
+
+      do_to_struct(data, struct, fields, accessor, opts)
+      |> unwrap()
     else
       raise "Provided schema is not a valid DataSchema: #{inspect(schema)}"
     end
@@ -533,26 +536,42 @@ defmodule DataSchema do
       fields = schema.__data_schema_fields()
       accessor = schema.__data_accessor()
       struct = struct(schema, %{})
-      to_struct(data, struct, fields, accessor, opts)
+
+      do_to_struct(data, struct, fields, accessor, opts)
+      |> unwrap()
     else
       raise "Provided schema is not a valid DataSchema: #{inspect(schema)}"
     end
   end
 
   def to_struct(data, struct, fields, accessor) do
-    to_struct(data, struct, fields, accessor, [])
+    do_to_struct(data, struct, fields, accessor, [])
+    |> unwrap()
   end
 
-  defp is_compile_time_schema?(schema) when is_atom(schema) do
-    Code.ensure_loaded?(schema) && function_exported?(schema, :__data_schema_fields, 0)
+  defp do_to_struct(data, schema) do
+    do_to_struct(data, schema, [])
   end
 
-  defp is_compile_time_schema?(%schema{}) do
-    is_compile_time_schema?(schema)
+  defp do_to_struct(data, %schema{} = struct, opts) do
+    if is_compile_time_schema?(schema) do
+      fields = schema.__data_schema_fields()
+      accessor = schema.__data_accessor()
+      do_to_struct(data, struct, fields, accessor, opts)
+    else
+      raise "Provided schema is not a valid DataSchema: #{inspect(schema)}"
+    end
   end
 
-  defp is_compile_time_schema?(%{}) do
-    false
+  defp do_to_struct(data, schema, opts) when is_atom(schema) do
+    if is_compile_time_schema?(schema) do
+      fields = schema.__data_schema_fields()
+      accessor = schema.__data_accessor()
+      struct = struct(schema, %{})
+      do_to_struct(data, struct, fields, accessor, opts)
+    else
+      raise "Provided schema is not a valid DataSchema: #{inspect(schema)}"
+    end
   end
 
   @doc """
@@ -586,18 +605,21 @@ defmodule DataSchema do
   """
   # If we are passed a Module we assume it's a struct and create an empty one to reduce over.
   def to_struct(data, struct, fields, accessor, opts) when is_atom(struct) do
-    to_struct(data, struct(struct, %{}), fields, accessor, opts)
+    do_to_struct(data, struct(struct, %{}), fields, accessor, opts)
+    |> unwrap()
   end
 
-  def to_struct(data, %{} = struct, fields, accessor, _opts) when is_list(fields) do
-    # Right now we fail as soon as we get an error. If this error is nested deep then we
-    # generate a recursive error that points to the value that caused it. We can imagine
-    # instead "collecting" errors - meaning continuing with struct creation to gather up
-    # all possible errors that will happen on struct creation. How to do this boggles the
-    # mind a bit. But we'd need an option I do know that....
-    # if we collect errors we'd need to define a traverse_errors fn that could collect all
-    # the errors.
-    # collect_errors? = Keyword.get(opts, :collect_errors, false)
+  def to_struct(data, %{} = struct, fields, accessor, opts) when is_list(fields) do
+    do_to_struct(data, %{} = struct, fields, accessor, opts)
+    |> unwrap()
+  end
+
+  defp do_to_struct(data, struct, fields, accessor, opts) when is_atom(struct) do
+    do_to_struct(data, struct(struct, %{}), fields, accessor, opts)
+    |> unwrap()
+  end
+
+  defp do_to_struct(data, %{} = struct, fields, accessor, _opts) when is_list(fields) do
     default_opts = [optional?: false, empty_values: [nil]]
 
     fields
@@ -675,8 +697,11 @@ defmodule DataSchema do
         )
     end)
     |> case do
-      {:error, error_message} -> {:error, error_message}
-      struct_or_map -> {:ok, struct_or_map}
+      {:error, error_message} ->
+        {:error, error_message}
+
+      struct_or_map ->
+        {:ok, struct_or_map}
     end
   end
 
@@ -700,6 +725,9 @@ defmodule DataSchema do
 
       {:error, :empty_required_value} ->
         {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
+
+      {:error, %CastFunctionError{} = cast_error} ->
+        {:halt, {:error, add_field_to_error(cast_error, field, struct)}}
 
       {:error, error} ->
         {:halt, {:error, DataSchema.Errors.new({field, error})}}
@@ -725,7 +753,7 @@ defmodule DataSchema do
     optional? = Keyword.get(opts, :optional?)
     default = Keyword.get(opts, :default, :no_default)
 
-    do_cast = &to_struct(&1, cast_module, inline_fields, accessor, [])
+    do_cast = &do_to_struct(&1, cast_module, inline_fields, accessor, [])
     process_has_one(field, value, do_cast, struct, empty_values, optional?, default)
   end
 
@@ -742,7 +770,7 @@ defmodule DataSchema do
     optional? = Keyword.get(opts, :optional?)
     default = Keyword.get(opts, :default, :no_default)
 
-    do_cast = &to_struct(&1, cast_module)
+    do_cast = &do_to_struct(&1, cast_module)
     process_has_one(field, value, do_cast, struct, empty_values, optional?, default)
   end
 
@@ -761,9 +789,12 @@ defmodule DataSchema do
 
     do_cast =
       &Enum.reduce_while(&1, {:ok, []}, fn value, {:ok, acc} ->
-        case to_struct(value, cast_module, inline_fields, accessor, []) do
-          {:ok, struct} -> {:cont, {:ok, [struct | acc]}}
-          {:error, %DataSchema.Errors{}} = error -> {:halt, error}
+        case do_to_struct(value, cast_module, inline_fields, accessor, []) do
+          {:ok, struct} ->
+            {:cont, {:ok, [struct | acc]}}
+
+          {:error, _} = error ->
+            {:halt, error}
         end
       end)
 
@@ -783,11 +814,17 @@ defmodule DataSchema do
     optional? = Keyword.get(opts, :optional?)
     default = Keyword.get(opts, :default, :no_default)
 
+    # TODO: Enum.with_index so that we can identify the precise problematic element
+    # when it errors? Cost paid for when there are no errors. But is nice to be able to
+    # pin point the exact element that went wrong.
     do_cast =
       &Enum.reduce_while(&1, {:ok, []}, fn value, {:ok, acc} ->
-        case to_struct(value, cast_module) do
-          {:ok, struct} -> {:cont, {:ok, [struct | acc]}}
-          {:error, %DataSchema.Errors{}} = error -> {:halt, error}
+        case do_to_struct(value, cast_module) do
+          {:ok, struct} ->
+            {:cont, {:ok, [struct | acc]}}
+
+          {:error, _} = error ->
+            {:halt, error}
         end
       end)
 
@@ -816,6 +853,9 @@ defmodule DataSchema do
 
           {:error, :empty_required_value} ->
             {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
+
+          {:error, %CastFunctionError{} = cast_error} ->
+            {:halt, {:error, add_field_to_error(cast_error, field, struct)}}
 
           {:error, error} ->
             {:halt, {:error, DataSchema.Errors.new({field, error})}}
@@ -855,6 +895,9 @@ defmodule DataSchema do
       {:error, :empty_required_value} ->
         {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
 
+      {:error, %CastFunctionError{} = cast_error} ->
+        {:halt, {:error, add_field_to_error(cast_error, field, struct)}}
+
       {:error, error} ->
         {:halt, {:error, DataSchema.Errors.new({field, error})}}
 
@@ -873,6 +916,9 @@ defmodule DataSchema do
 
       {:error, :empty_required_value} ->
         {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
+
+      {:error, %CastFunctionError{} = cast_error} ->
+        {:halt, {:error, add_field_to_error(cast_error, field, struct)}}
 
       {:error, error} ->
         {:halt, {:error, DataSchema.Errors.new({field, error})}}
@@ -900,7 +946,10 @@ defmodule DataSchema do
 
     do_cast = &call_cast_fn(cast_fn, &1, original_field)
 
-    case to_struct(data, aggregate, fields, accessor, []) do
+    case do_to_struct(data, aggregate, fields, accessor, []) do
+      {:error, %CastFunctionError{} = cast_error} ->
+        {:halt, {:error, add_field_to_error(cast_error, field, parent)}}
+
       {:error, %DataSchema.Errors{} = error} ->
         {:halt, {:error, DataSchema.Errors.new({field, error})}}
 
@@ -911,6 +960,9 @@ defmodule DataSchema do
 
           {:error, :empty_required_value} ->
             {:halt, {:error, DataSchema.Errors.empty_required_value_error(field)}}
+
+          {:error, %CastFunctionError{} = cast_error} ->
+            {:halt, {:error, add_field_to_error(cast_error, field, parent)}}
 
           {:error, error} ->
             {:halt, {:error, DataSchema.Errors.new({field, error})}}
@@ -969,6 +1021,40 @@ defmodule DataSchema do
     raise DataSchema.InvalidCastFunction, message: message
   end
 
+  def unwrap({:error, %CastFunctionError{} = cast_error}) do
+    message = CastFunctionError.error_message(cast_error)
+
+    reraise CastFunctionError,
+            [message: message, wrapped_error: cast_error.wrapped_error],
+            cast_error.stacktrace_of_wrapped_error
+  end
+
+  def unwrap(value), do: value
+
+  defp is_compile_time_schema?(schema) when is_atom(schema) do
+    Code.ensure_loaded?(schema) && function_exported?(schema, :__data_schema_fields, 0)
+  end
+
+  defp is_compile_time_schema?(%schema{}) do
+    is_compile_time_schema?(schema)
+  end
+
+  defp is_compile_time_schema?(%{}) do
+    false
+  end
+
+  defp add_field_to_error(cast_error, field, %schema{}) do
+    if is_compile_time_schema?(schema) do
+      %{cast_error | path: [{schema, field} | cast_error.path]}
+    else
+      %{cast_error | path: [field | cast_error.path]}
+    end
+  end
+
+  defp add_field_to_error(cast_error, field, _) do
+    %{cast_error | path: [field | cast_error.path]}
+  end
+
   # Sometimes the data we are creating is a map, sometimes a struct. When it is a struct
   # we want to know the field exists before we add it.
   defp update_struct(%_struct_name{} = struct, field, item) do
@@ -984,8 +1070,15 @@ defmodule DataSchema do
       apply(module, fun, [value | args])
     rescue
       error ->
-        message = error_message(original_field, error)
-        reraise DataSchema.CastFunctionError, [message: message], __STACKTRACE__
+        cast_error = %CastFunctionError{
+          casted_value: value,
+          path: [],
+          leaf_field: original_field,
+          wrapped_error: error,
+          stacktrace_of_wrapped_error: __STACKTRACE__
+        }
+
+        {:error, cast_error}
     end
   end
 
@@ -994,8 +1087,15 @@ defmodule DataSchema do
       module.cast(value)
     rescue
       error ->
-        message = error_message(original_field, error)
-        reraise DataSchema.CastFunctionError, [message: message], __STACKTRACE__
+        cast_error = %CastFunctionError{
+          casted_value: value,
+          path: [],
+          leaf_field: original_field,
+          wrapped_error: error,
+          stacktrace_of_wrapped_error: __STACKTRACE__
+        }
+
+        {:error, cast_error}
     end
   end
 
@@ -1004,33 +1104,16 @@ defmodule DataSchema do
       fun.(value)
     rescue
       error ->
-        message = error_message(original_field, error)
+        cast_error = %CastFunctionError{
+          casted_value: value,
+          path: [],
+          leaf_field: original_field,
+          wrapped_error: error,
+          stacktrace_of_wrapped_error: __STACKTRACE__
+        }
 
-        reraise DataSchema.CastFunctionError, [message: message], __STACKTRACE__
+        {:error, cast_error}
     end
-  end
-
-  # It would be much nicer if we could print out exactly what the original field looked
-  # like in the source code butwe have to fallback to inspect - meaning functions would
-  # look a bit shit. Ah well.
-  defp error_message({:field, original_field}, error) do
-    error_struct = error.__struct__
-      """
-      \n  ** (#{inspect(error_struct)})
-
-      Error when casting field:
-
-        field: #{inspect(original_field)},
-
-      The casting function raised the following error:
-
-        #{inspect(error_struct)}
-
-      with message:
-
-        #{inspect(error_struct.message(error))}
-
-      """
   end
 
   @doc """

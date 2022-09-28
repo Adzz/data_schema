@@ -5,6 +5,10 @@ defmodule DataSchema.String do
   @behaviour DataSchema.CastBehaviour
 
   @impl true
+  def cast("raise") do
+    raise "Nope!"
+  end
+
   def cast(string) when is_binary(string) do
     {:ok, string}
   end
