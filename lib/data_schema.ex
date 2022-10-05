@@ -16,11 +16,11 @@ defmodule DataSchema do
   """
   def to_runtime_schema(schema) when is_atom(schema) do
     if Code.ensure_loaded?(schema) &&
-         !function_exported?(schema, :__data_schema_fields, 0) do
+         function_exported?(schema, :__data_schema_fields, 0) do
+      to_runtime_schema(schema.__data_schema_fields())
+    else
       raise "Provided schema is not a valid DataSchema: #{inspect(schema)}"
     end
-
-    to_runtime_schema(schema.__data_schema_fields())
   end
 
   def to_runtime_schema([_ | _] = fields) do
@@ -1124,14 +1124,13 @@ defmodule DataSchema do
        what you want.
        """ && false
   def absolute_paths_for_schema(schema) when is_atom(schema) do
-    if Code.ensure_loaded?(schema) &&
-         !function_exported?(schema, :__data_schema_fields, 0) do
+    if Code.ensure_loaded?(schema) && function_exported?(schema, :__data_schema_fields, 0) do
+      schema
+      |> to_runtime_schema()
+      |> absolute_paths_for_schema()
+    else
       raise "Provided schema is not a valid DataSchema: #{inspect(schema)}"
     end
-
-    schema
-    |> to_runtime_schema()
-    |> absolute_paths_for_schema()
   end
 
   def absolute_paths_for_schema(runtime_schema) when is_list(runtime_schema) do
