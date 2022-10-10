@@ -56,6 +56,7 @@ If it's empty and not optional we will error.
 
 For example:
 
+```elixir
     defmodule Sandwich do
       require DataSchema
 
@@ -63,26 +64,32 @@ For example:
         field: {:type, "the_type", &{:ok, String.upcase(&1)}, optional?: true, empty_values: [nil]},
       ])
     end
+```
 
   And:
 
-      defmodule Sandwich do
-        require DataSchema
+```elixir
+    defmodule Sandwich do
+      require DataSchema
 
-        DataSchema.data_schema([
-          field: {:list, "list", &{:ok, &1}, optional?: true, empty_values: [[]]},
-        ])
-      end
+      DataSchema.data_schema([
+        field: {:list, "list", &{:ok, &1}, optional?: true, empty_values: [[]]},
+      ])
+    end
+```
 
   And:
 
+```elixir
       defmodule Sandwich do
         require DataSchema
+
         @options [optional?: true, empty_values: [nil], default: &DateTime.utc_now/0]
         DataSchema.data_schema([
           field: {:created_at, "inserted_at", &{:ok, &1}, @options},
         ])
       end
+```
 
 To see this better let's look at a very simple example. Assume our input data looks like this:
 
