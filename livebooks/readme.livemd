@@ -2,6 +2,11 @@
 
 # DataSchema
 
+## Dependencies
+
+```elixir
+Mix.install([{:data_schema, path: "./"}])
+```
 
 Data schemas are declarative descriptions of how to create a struct from some input data. You can set up different schemas to handle different kinds of input data. By default we assume the incoming data is a map, but you can configure schemas to work with any arbitrary data input including XML and json.
 
@@ -35,22 +40,22 @@ There are 5 kinds of struct fields we could want:
 2. `list_of`   - The value will be a list of casted values created from the source data.
 3. `has_one`   - The value will be created from a nested data schema (so will be a struct)
 4. `has_many`  - The value will be created by casting a list of values into a data schema.
-(You end up with a list of structs defined by the provided schema). Similar to has_many in ecto
+   (You end up with a list of structs defined by the provided schema). Similar to has_many in ecto
 5. `aggregate` - The value will be a casted value formed from multiple bits of data in the source.
 
 Available options are:
 
 * `:optional?` - specifies whether or not the field in the struct should be included in
-the `@enforce_keys` for the struct. By default all fields are required but you can mark
-them as optional by setting this to `true`. This will also be checked when creating a
-struct with `DataSchema.to_struct/2` returning an error if the required field is null.
+  the `@enforce_keys` for the struct. By default all fields are required but you can mark
+  them as optional by setting this to `true`. This will also be checked when creating a
+  struct with `DataSchema.to_struct/2` returning an error if the required field is null.
 * `:empty_values` - allows you to define what values should be used as "empty" for a
-given field. If either the value returned from the data accessor or the casted value are
-equivalent to any element in this list, that field is deemed to be empty. Defaults to `[nil]`,
-meaning nil is always considered "empty".
+  given field. If either the value returned from the data accessor or the casted value are
+  equivalent to any element in this list, that field is deemed to be empty. Defaults to `[nil]`,
+  meaning nil is always considered "empty".
 * `:default` - specifies a 0 arity function that will be called to produce a default value for a field
-when casting. This function will only be called if a field is found to be empty AND optional.
-If it's empty and not optional we will error.
+  when casting. This function will only be called if a field is found to be empty AND optional.
+  If it's empty and not optional we will error.
 
 For example:
 
@@ -63,7 +68,9 @@ defmodule Sandwich do
   )
 end
 ```
-  And:
+
+And:
+
 ```elixir
 defmodule Sandwich do
   require DataSchema
@@ -71,15 +78,18 @@ defmodule Sandwich do
   DataSchema.data_schema(field: {:list, "list", &{:ok, &1}, optional?: true, empty_values: [[]]})
 end
 ```
-  And:
+
+And:
 
 ```elixir
 defmodule Sandwich do
   require DataSchema
+
   @options [optional?: true, empty_values: [nil], default: &DateTime.utc_now/0]
   DataSchema.data_schema(field: {:created_at, "inserted_at", &{:ok, &1}, @options})
 end
 ```
+
 To see this better let's look at a very simple example. Assume our input data looks like this:
 
 ```elixir
@@ -93,7 +103,6 @@ source_data = %{
 }
 ```
 
-
 And now let's assume the struct we wish to make is this one:
 
 ```elixir
@@ -104,7 +113,6 @@ And now let's assume the struct we wish to make is this one:
   post_datetime: ~N[2020-11-11 14:00:00]
 }
 ```
-
 
 We can describe the following schemas to enable this:
 
@@ -137,7 +145,6 @@ defmodule BlogPost do
 end
 ```
 
-
 Then to transform some input data into the desired struct we can call `DataSchema.to_struct/2` which works recursively to transform the input data into the struct defined by the schema.
 
 ```elixir
@@ -161,7 +168,6 @@ DataSchema.to_struct(source_data, BlogPost)
 }
 ```
 
-
 So imagine the input data came from an API response:
 
 ```elixir
@@ -170,7 +176,6 @@ with {:ok, %{status: 200, response_body: body}} <- Http.get("https://www.my_thin
   DataSchema.to_struct(source_data, BlogPost)
 end
 ```
-
 
 ## Different Source Data Types
 
@@ -236,7 +241,6 @@ defmodule DataSchema.MapAccessor do
 end
 ```
 
-
 To save repeating `@data_accessor DataSchema.MapAccessor` on all of your schemas you could use a `__using__` macro like so:
 
 ```elixir
@@ -260,7 +264,6 @@ defmodule DraftPost do
 end
 ```
 
-
 This means should we want to change how we access data (say we wanted to use `Map.fetch!` instead of `Map.get`) we would only need to change the accessor used in one place - inside the `__using__` macro. It also gives you a handy place to provide other functions for the structs that get created, perhaps implementing a default Inspect protocol implementation for example:
 
 ```elixir
@@ -283,7 +286,6 @@ defmodule MapSchema do
   end
 end
 ```
-
 
 This could help ensure you never log sensitive fields by requiring you to explicitly implement an inspect protocol for a struct in order to see the fields in it.
 
@@ -318,7 +320,6 @@ defmodule XpathAccessor do
 end
 ```
 
-
 As we can see our accessor uses the library [Sweet XML](https://github.com/kbrw/sweet_xml) to access the XML. That means if we wanted to change the library later we would only need to alter this one module for all of our schemas to benefit from the change.
 
 Our source data looks like this:
@@ -337,7 +338,6 @@ source_data = """
 </Blog>
 """
 ```
-
 
 Let's define our schemas like so:
 
@@ -373,7 +373,6 @@ defmodule BlogPost do
 end
 ```
 
-
 And now we can transform:
 
 ```elixir
@@ -404,7 +403,6 @@ DataSchema.to_struct(source_data, BlogPost)
   post_datetime: ~N[2021-11-11 14:00:00]
 }
 ```
-
 
 ## to_runtime_schema/1
 
@@ -440,6 +438,7 @@ DataSchema.to_struct(data, Foo)
 # => Outputs the following:
 %Foo{a_rocket: "enables space travel"}
 ```
+
 ## to_struct/5
 
 Creates a struct or map from the provided arguments. This function can be used to define
@@ -464,6 +463,7 @@ fields = [
 DataSchema.to_struct(input, Run, fields, DataSchema.MapAccessor)
 {:ok, %Run{time: "10:00"}}
 ```
+
 Creating a map:
 
 ```elixir
@@ -476,6 +476,7 @@ fields = [
 DataSchema.to_struct(input, %{}, fields, DataSchema.MapAccessor)
 {:ok, %{time: "10:00"}}
 ```
+
 ## data_schema/1
 
 A macro that creates a data schema. By default all struct fields are required but you
@@ -490,25 +491,26 @@ There are 5 kinds of struct fields we can have:
 2. `list_of`   - The value will be a list of casted values created from the source data.
 3. `has_one`   - The value will be created from a nested data schema (so will be a struct)
 4. `has_many`  - The value will be created by casting a list of values into a data schema.
-(You end up with a list of structs defined by the provided schema). Similar to has_many in ecto
+   (You end up with a list of structs defined by the provided schema). Similar to has_many in ecto
 5. `aggregate` - The value will a casted value formed from multiple bits of data in the source.
 
 ### Options
 
 Available options are:
 
-  - `:optional?` - specifies whether or not the field in the struct should be included in
+* `:optional?` - specifies whether or not the field in the struct should be included in
   the `@enforce_keys` for the struct. By default all fields are required but you can mark
   them as optional by setting this to `true`. This will also be checked when creating a
   struct with `DataSchema.to_struct/2` returning an error if the required field is null.
-  - `:empty_values` - allows you to define what values should be used as "empty" for a
+* `:empty_values` - allows you to define what values should be used as "empty" for a
   given field. If either the value returned from the data accessor or the casted value are
   equivalent to any element in this list, that field is deemed to be empty. Defaults to `[nil]`.
-  - `:default` - specifies a 0 arity function that will be called to produce a default value for a field
+* `:default` - specifies a 0 arity function that will be called to produce a default value for a field
   when casting. This function will only be called if a field is found to be empty AND optional.
   If it's empty and not optional we will error.
 
 For example:
+
 ```elixir
 defmodule Sandwich do
   require DataSchema
@@ -516,7 +518,9 @@ defmodule Sandwich do
   DataSchema.data_schema(field: {:type, "the_type", &{:ok, String.upcase(&1)}, optional?: true})
 end
 ```
+
 And:
+
 ```elixir
 defmodule Sandwich do
   require DataSchema
@@ -524,6 +528,7 @@ defmodule Sandwich do
   DataSchema.data_schema(field: {:list, "list", &{:ok, &1}, optional?: true, empty_values: [[]]})
 end
 ```
+
 And:
 
 ```elixir
@@ -533,6 +538,7 @@ defmodule Sandwich do
   DataSchema.data_schema(field: {:created_at, "inserted_at", &{:ok, &1}, @options})
 end
 ```
+
 ### Examples
 
 See the guides for more in depth examples but below you can see how we create a schema

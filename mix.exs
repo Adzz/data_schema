@@ -24,7 +24,7 @@ defmodule DataSchema.MixProject do
   end
 
   defp create_livebook(_) do
-    Mix.Task.run("create_livebook_from_module", ["DataSchema", "livebooks/readme"])
+    Mix.Task.run("create_livebook_from_module", ["DataSchema", "livebooks/readme", "[{:data_schema, path: \"./\"}]"])
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
@@ -52,7 +52,7 @@ defmodule DataSchema.MixProject do
       {:benchee, ">= 0.0.0", only: [:dev, :test]},
       # This will be used for benchmarking.
       {:ecto, ">= 0.0.0", only: [:dev, :test]},
-      {:livebook_helpers, "~> 0.0.1", only: [:dev, :docs]},
+      {:livebook_helpers, "~> 0.0.8", only: [:dev, :docs]},
       {:ex_doc, ">= 0.0.0", only: :docs, runtime: false}
     ]
   end
