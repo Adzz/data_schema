@@ -36,7 +36,7 @@ defmodule DataSchema.AggregateTest do
 
   describe ":aggregate type to_struct/2" do
     test "non null field that returns null from the data accessor errors." do
-      input = %{foo: nil}
+      input = %{"foo" => nil}
 
       assert DataSchema.to_struct(input, AggErr) ==
                {:error,
