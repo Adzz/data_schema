@@ -5,7 +5,7 @@
 ## Dependencies
 
 ```elixir
-Mix.install([{:data_schema, path: "./"}])
+Mix.install([:data_schema, :sweet_xml])
 ```
 
 Data schemas are declarative descriptions of how to create a struct from some input data. You can set up different schemas to handle different kinds of input data. By default we assume the incoming data is a map, but you can configure schemas to work with any arbitrary data input including XML and json.
@@ -72,7 +72,7 @@ end
 And:
 
 ```elixir
-defmodule Sandwich do
+defmodule SandwichV2 do
   require DataSchema
 
   DataSchema.data_schema(field: {:list, "list", &{:ok, &1}, optional?: true, empty_values: [[]]})
@@ -82,7 +82,7 @@ end
 And:
 
 ```elixir
-defmodule Sandwich do
+defmodule SandwichV3 do
   require DataSchema
 
   @options [optional?: true, empty_values: [nil], default: &DateTime.utc_now/0]
@@ -104,6 +104,8 @@ source_data = %{
 ```
 
 And now let's assume the struct we wish to make is this one:
+
+<!-- livebook:{"continue_on_error":true} -->
 
 ```elixir
 %BlogPost{
@@ -170,6 +172,8 @@ DataSchema.to_struct(source_data, BlogPost)
 
 So imagine the input data came from an API response:
 
+<!-- livebook:{"continue_on_error":true} -->
+
 ```elixir
 with {:ok, %{status: 200, response_body: body}} <- Http.get("https://www.my_thing.example.com"),
      {:ok, decoded} <- Jason.decode(body) do
@@ -182,21 +186,21 @@ end
 As we mentioned before we want to be able to handle multiple different kinds of source data in our schemas. For each type of source data we want to be able to specify how you access the data for each field type. We do that by providing a "data accessor" (a module that implements the `DataSchema.DataAccessBehaviour`) when we create the schema. We do this by providing a `@data_accessor` on the schema. By default if you do not provide this module attribute we use `DataSchema.MapAccessor`. That means the above example is equivalent to doing the following:
 
 ```elixir
-defmodule DraftPost do
+defmodule DraftPostV2 do
   import DataSchema, only: [data_schema: 1]
 
   @data_accessor DataSchema.MapAccessor
   data_schema(field: {:content, "content", &{:ok, to_string(&1)}})
 end
 
-defmodule Comment do
+defmodule CommentV2 do
   import DataSchema, only: [data_schema: 1]
 
   @data_accessor DataSchema.MapAccessor
   data_schema(field: {:text, "text", &{:ok, to_string(&1)}})
 end
 
-defmodule BlogPost do
+defmodule BlogPostV2 do
   import DataSchema, only: [data_schema: 1]
   @data_accessor DataSchema.MapAccessor
 
@@ -206,8 +210,8 @@ defmodule BlogPost do
   ]
   data_schema(
     field: {:content, "content", &{:ok, to_string(&1)}},
-    has_many: {:comments, "comments", Comment},
-    has_one: {:draft, "draft", DraftPost},
+    has_many: {:comments, "comments", CommentV2},
+    has_one: {:draft, "draft", DraftPostV2},
     aggregate: {:post_datetime, @date_time_fields, &NaiveDateTime.new(&1.date, &1.time)}
   )
 end
@@ -216,7 +220,7 @@ end
 When creating the struct DataSchema will call the relevant function for the field we are creating, passing it the source data and the path to the value(s) in the source. Our `DataSchema.MapAccessor` looks like this:
 
 ```elixir
-defmodule DataSchema.MapAccessor do
+defmodule DataSchema.MapAccessorV2 do
   @behaviour DataSchema.DataAccessBehaviour
 
   @impl true
@@ -248,7 +252,7 @@ defmodule MapSchema do
   defmacro __using__(_) do
     quote do
       import DataSchema, only: [data_schema: 1]
-      @data_accessor DataSchema.MapAccessor
+      @data_accessor DataSchema.MapAccessorV2
     end
   end
 end
@@ -257,7 +261,7 @@ end
 Then use it like so:
 
 ```elixir
-defmodule DraftPost do
+defmodule DraftPostV3 do
   use MapSchema
 
   data_schema(field: {:content, "content", &{:ok, to_string(&1)}})
@@ -265,6 +269,8 @@ end
 ```
 
 This means should we want to change how we access data (say we wanted to use `Map.fetch!` instead of `Map.get`) we would only need to change the accessor used in one place - inside the `__using__` macro. It also gives you a handy place to provide other functions for the structs that get created, perhaps implementing a default Inspect protocol implementation for example:
+
+<!-- livebook:{"continue_on_error":true} -->
 
 ```elixir
 defmodule MapSchema do
@@ -292,6 +298,8 @@ This could help ensure you never log sensitive fields by requiring you to explic
 ### XML Schemas
 
 Now let's imagine instead that our source data was XML. What would it require to enable that? First a new Xpath data accessor:
+
+<!-- livebook:{"continue_on_error":true} -->
 
 ```elixir
 defmodule XpathAccessor do
@@ -342,21 +350,21 @@ source_data = """
 Let's define our schemas like so:
 
 ```elixir
-defmodule DraftPost do
+defmodule DraftPostV4 do
   import DataSchema, only: [data_schema: 1]
 
   @data_accessor XpathAccessor
   data_schema(field: {:content, "./Content/text()", &{:ok, to_string(&1)}})
 end
 
-defmodule Comment do
+defmodule CommentV4 do
   import DataSchema, only: [data_schema: 1]
 
   @data_accessor XpathAccessor
   data_schema(field: {:text, "./text()", &{:ok, to_string(&1)}})
 end
 
-defmodule BlogPost do
+defmodule BlogPostV4 do
   import DataSchema, only: [data_schema: 1]
 
   @data_accessor XpathAccessor
@@ -366,8 +374,8 @@ defmodule BlogPost do
   ]
   data_schema(
     field: {:content, "/Blog/Content/text()", &{:ok, to_string(&1)}},
-    has_many: {:comments, "//Comment", Comment},
-    has_one: {:draft, "/Blog/Draft", DraftPost},
+    has_many: {:comments, "//Comment", CommentV4},
+    has_one: {:draft, "/Blog/Draft", DraftPostV4},
     aggregate: {:post_datetime, @datetime_fields, &NaiveDateTime.new(&1.date, &1.time)}
   )
 end
@@ -389,7 +397,7 @@ source_data = """
 </Blog>
 """
 
-DataSchema.to_struct(source_data, BlogPost)
+DataSchema.to_struct(source_data, BlogPostV4)
 
 # This will output:
 
@@ -436,7 +444,7 @@ end
 
 DataSchema.to_struct(data, Foo)
 # => Outputs the following:
-%Foo{a_rocket: "enables space travel"}
+# %Foo{a_rocket: "enables space travel"}
 ```
 
 ## to_struct/5
@@ -461,7 +469,6 @@ fields = [
 ]
 
 DataSchema.to_struct(input, Run, fields, DataSchema.MapAccessor)
-{:ok, %Run{time: "10:00"}}
 ```
 
 Creating a map:
@@ -474,7 +481,6 @@ fields = [
 ]
 
 DataSchema.to_struct(input, %{}, fields, DataSchema.MapAccessor)
-{:ok, %{time: "10:00"}}
 ```
 
 ## data_schema/1
