@@ -64,6 +64,8 @@ source_data = %{
 
 And now let's assume the struct we wish to make is this one:
 
+<!-- livebook:{"force_markdown":true} -->
+
 ```elixir
 %BlogPost{
   content: "This is a blog post",
@@ -72,6 +74,8 @@ And now let's assume the struct we wish to make is this one:
   post_datetime: ~N[2020-11-11 14:00:00]
 }
 ```
+
+<!-- livebook:{"break_markdown":true} -->
 
 We can describe the following schemas to enable this:
 
@@ -123,27 +127,29 @@ DataSchema.to_struct(source_data, BlogPost)
 
 ## Different Source Data Types
 
-As we mentioned before we want to be able to handle multiple different kinds of source data in our schemas. For each type of source data we want to be able to specify how you access the data for each field type. We do that by providing a "data accessor" (a module that implements the `DataSchema.DataAccessBehaviour`) when we create the schema. We do this by providing a `@data_accessor` on the schema. By default if you do not provide this module attribute we use `DataSchema.MapAccessor`. That means the above example is equivalent to doing the following:
+As we mentioned before we want to be able to handle multiple different kinds of source data in our schemas. For each type of source data we want to be able to specify how you access the data for each field type. We do that by providing a "data accessor" (a module that implements the `DataSchema.DataAccessBehaviour`) when we create the schema. We do this by providing a `@data_accessor` on the schema. By default if you do not provide this module attribute we use `DataSchema.TheMapAccessor`. That means the above example is equivalent to doing the following:
+
+<!-- livebook:{"continue_on_error":true} -->
 
 ```elixir
 defmodule DraftPost do
   import DataSchema, only: [data_schema: 1]
 
-  @data_accessor DataSchema.MapAccessor
+  @data_accessor DataSchema.TheMapAccessor
   data_schema(field: {:content, "content", &{:ok, to_string(&1)}})
 end
 
 defmodule Comment do
   import DataSchema, only: [data_schema: 1]
 
-  @data_accessor DataSchema.MapAccessor
+  @data_accessor DataSchema.TheMapAccessor
   data_schema(field: {:text, "text", &{:ok, to_string(&1)}})
 end
 
 defmodule BlogPost do
   import DataSchema, only: [data_schema: 1]
 
-  @data_accessor DataSchema.MapAccessor
+  @data_accessor DataSchema.TheMapAccessor
   @date_time_fields [
     field: {:date, "date", &Date.from_iso8601/1},
     field: {:time, "time", &Time.from_iso8601/1}
@@ -157,10 +163,10 @@ defmodule BlogPost do
 end
 ```
 
-When creating the struct DataSchema will call the relevant function for the field we are creating, passing it the source data and the path to the value(s) in the source. Our `DataSchema.MapAccessor` looks like this:
+When creating the struct DataSchema will call the relevant function for the field we are creating, passing it the source data and the path to the value(s) in the source. Our `DataSchema.TheMapAccessor` looks like this:
 
 ```elixir
-defmodule DataSchema.MapAccessor do
+defmodule DataSchema.TheMapAccessor do
   @behaviour DataSchema.DataAccessBehaviour
 
   @impl true
@@ -185,14 +191,14 @@ defmodule DataSchema.MapAccessor do
 end
 ```
 
-To save repeating `@data_accessor DataSchema.MapAccessor` on all of your schemas you could use a `__using__` macro like so:
+To save repeating `@data_accessor DataSchema.TheMapAccessor` on all of your schemas you could use a `__using__` macro like so:
 
 ```elixir
 defmodule MapSchema do
   defmacro __using__(_) do
     quote do
       import DataSchema, only: [data_schema: 1]
-      @data_accessor DataSchema.MapAccessor
+      @data_accessor DataSchema.TheMapAccessor
     end
   end
 end
@@ -213,7 +219,7 @@ defmodule MapSchema do
 
     quote bind_quoted: [skip_inspect_impl: skip_inspect_impl] do
       import DataSchema, only: [data_schema: 1]
-      @data_accessor DataSchema.MapAccessor
+      @data_accessor DataSchema.TheMapAccessor
 
       unless skip_inspect_impl do
         defimpl Inspect do

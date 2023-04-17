@@ -258,7 +258,7 @@ fields = [
 Now we update the reduce a bit
 
 ```elixir
-defmodule Schema do
+defmodule SchemaV2 do
   def to_struct(input, fields, accumulator) do
     Enum.reduce(fields, accumulator, fn
       {:field, {key, path, cast_fn}}, acc ->
@@ -277,7 +277,7 @@ defmodule Schema do
   end
 end
 
-Schema.to_struct(input, fields, %{})
+SchemaV2.to_struct(input, fields, %{})
 ```
 
 ## Using Compiled Schemas
@@ -287,7 +287,7 @@ to_struct. Our `fields` specify a key that we will put values under, but it does
 specific struct we create. To demo that we could do this:
 
 ```elixir
-Schema.to_struct(input, fields, %Order{})
+SchemaV2.to_struct(input, fields, %Order{})
 ```
 
 Or even
@@ -296,15 +296,17 @@ Or even
 defmodule Ticket do
   defstruct [:origin, :destination, :departing_at, :total_price]
 end
+```
 
-Schema.to_struct(input, fields, %Ticket{})
+```elixir
+SchemaV2.to_struct(input, fields, %Ticket{})
 ```
 
 We also have the option to forgo that flexibility and create structs at the same time that we 
 our fields. We could define what we have already in the following way
 
 ```elixir
-defmodule Money do
+defmodule MoneyV2 do
   import DataSchema
 
   data_schema(
@@ -313,14 +315,14 @@ defmodule Money do
   )
 end
 
-defmodule Order do
+defmodule OrderV2 do
   import DataSchema
 
   data_schema(
     field: {:origin, "/Flight/@leaving", fn leaving -> leaving end},
     field: {:destination, "/Flight/@arriving", fn arriving -> arriving end},
     field: {:departing_at, "/Flight/@departing_at", fn time -> Time.from_iso8601!(time) end},
-    has_one: {:total_price, "/Flight", Money}
+    has_one: {:total_price, "/Flight", MoneyV2}
   )
 end
 ```
@@ -330,7 +332,7 @@ function called `__data_schema_fields/0` and puts the field descriptions in it. 
 means we can define a simpler `to_struct` function:
 
 ```elixir
-defmodule Schema do
+defmodule SchemaV3 do
   def to_struct(input, module) do
     to_struct(input, module.__data_schema_fields(), struct(module, %{}))
   end
@@ -358,7 +360,7 @@ defmodule Schema do
   end
 end
 
-Schema.to_struct(input, Order)
+SchemaV3.to_struct(input, OrderV2)
 ```
 
 ## Different Input data
@@ -368,7 +370,7 @@ handle any given data type. To think about how let's look at where we currently 
 `SweetXML` function and parameterize that instead:
 
 ```elixir
-defmodule Schema do
+defmodule SchemaV4 do
   def to_struct(input, module) do
     accessor = module.__data_accessor()
     fields = module.__data_schema_fields()
@@ -408,7 +410,7 @@ defmodule XpathAccessor do
   end
 end
 
-Schema.to_struct(input, fields, XpathAccessor, %{})
+SchemaV4.to_struct(input, fields, XpathAccessor, %{})
 ```
 
 What you notice is that the function we just parameterized could be anything. That means our path
@@ -451,7 +453,7 @@ defmodule MapAccessor do
   end
 end
 
-defmodule Money do
+defmodule MoneyV3 do
   import DataSchema
 
   @data_accessor AccessAccessor
@@ -461,7 +463,7 @@ defmodule Money do
   )
 end
 
-defmodule Order do
+defmodule OrderV3 do
   import DataSchema
 
   @data_accessor MapAccessor
@@ -469,9 +471,9 @@ defmodule Order do
     field: {:origin, "leaving", fn x -> {:ok, to_string(x)} end},
     field: {:destination, "arriving", fn arriving -> arriving end},
     field: {:departing_at, "departing_at", fn time -> Time.from_iso8601!(time) end},
-    has_one: {:total_price, "", Money}
+    has_one: {:total_price, "", MoneyV3}
   )
 end
 
-Schema.to_struct(input, Order)
+SchemaV4.to_struct(input, OrderV3)
 ```
