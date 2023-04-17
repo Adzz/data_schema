@@ -246,13 +246,13 @@ structs to have the same keys as the price response.
 ```elixir
 # ============= Price response Schemas ==========================
 
-defmodule Passenger do
+defmodule PassengerV2 do
   import DataSchema, only: [data_schema: 1]
 
   data_schema(field: {:id, "id", &{:ok, &1}})
 end
 
-defmodule Price do
+defmodule PriceV2 do
   import DataSchema, only: [data_schema: 1]
 
   data_schema(
@@ -270,7 +270,7 @@ defmodule Price do
   end
 end
 
-defmodule Journey do
+defmodule JourneyV2 do
   import DataSchema, only: [data_schema: 1]
 
   data_schema(
@@ -281,13 +281,13 @@ defmodule Journey do
   )
 end
 
-defmodule PriceResponse do
+defmodule PriceResponseV2 do
   import DataSchema, only: [data_schema: 1]
 
   data_schema(
-    has_many: {:passengers, "passengers", Passenger},
-    has_many: {:prices, "prices", Price},
-    has_one: {:journey, "journey", Journey}
+    has_many: {:passengers, "passengers", PassengerV2},
+    has_many: {:prices, "prices", PriceV2},
+    has_one: {:journey, "journey", JourneyV2}
   )
 
   def to_struct(response) do
@@ -297,7 +297,7 @@ end
 
 # ============= Book response Schemas ==========================
 
-defmodule Cost do
+defmodule CostV2 do
   import DataSchema, only: [data_schema: 1]
 
   data_schema(
@@ -315,7 +315,7 @@ defmodule Cost do
   end
 end
 
-defmodule Trip do
+defmodule TripV2 do
   import DataSchema, only: [data_schema: 1]
 
   data_schema(
@@ -326,14 +326,14 @@ defmodule Trip do
   )
 end
 
-defmodule BookResponse do
+defmodule BookResponseV2 do
   import DataSchema, only: [data_schema: 1]
 
   data_schema(
     field: {:success?, "success", &{:ok, &1}},
-    has_many: {:passengers, "passengers", Passenger},
-    has_many: {:prices, "costs", Cost},
-    has_one: {:journey, "trip", Trip}
+    has_many: {:passengers, "passengers", PassengerV2},
+    has_many: {:prices, "costs", CostV2},
+    has_one: {:journey, "trip", TripV2}
   )
 
   def to_struct(response) do
@@ -364,10 +364,10 @@ defmodule OurJourney do
   end
 end
 
-{:ok, price_struct} = PriceResponse.to_struct(price_response)
+{:ok, price_struct} = PriceResponseV2.to_struct(price_response)
 OurJourney.to_our_journey(price_struct) |> IO.inspect(label: "PRICE RESPONSE")
 
-{:ok, book_response_struct} = BookResponse.to_struct(book_response)
+{:ok, book_response_struct} = BookResponseV2.to_struct(book_response)
 OurJourney.to_our_journey(book_response_struct) |> IO.inspect(label: "BOOK RESPONSE")
 :ok
 ```
@@ -392,7 +392,7 @@ input data a little more and lets us use the exact same struct for one or more s
 fields.
 
 ```elixir
-defmodule Price do
+defmodule PriceV3 do
   defstruct [:passenger_id, :journey_id, :total, :currency]
 
   def float_type(value) do
@@ -403,15 +403,15 @@ defmodule Price do
   end
 end
 
-defmodule Journey do
+defmodule JourneyV3 do
   defstruct [:id, :from, :to, :leaving_at]
 end
 
-defmodule Passenger do
+defmodule PassengerV3 do
   defstruct [:id]
 end
 
-defmodule PriceResponse do
+defmodule PriceResponseV3 do
   defstruct [:prices, :journey, :passengers]
 end
 
@@ -427,16 +427,16 @@ defmodule Responses do
     price_fields = [
       field: {:passenger_id, "passenger_id", &{:ok, &1}},
       field: {:journey_id, "journey_id", &{:ok, &1}},
-      field: {:total, "total", &Price.float_type/1},
+      field: {:total, "total", &PriceV3.float_type/1},
       field: {:currency, "currency", &{:ok, &1}}
     ]
 
     passenger_fields = [field: {:id, "id", &{:ok, &1}}]
 
     [
-      has_many: {:passengers, "passengers", {Passenger, passenger_fields}},
-      has_many: {:prices, "prices", {Price, price_fields}},
-      has_one: {:journey, "journey", {Journey, journey_fields}}
+      has_many: {:passengers, "passengers", {PassengerV3, passenger_fields}},
+      has_many: {:prices, "prices", {PriceV3, price_fields}},
+      has_one: {:journey, "journey", {JourneyV3, journey_fields}}
     ]
   end
 
@@ -451,16 +451,16 @@ defmodule Responses do
     cost_fields = [
       field: {:passenger_id, "passenger_id", &{:ok, &1}},
       field: {:journey_id, "trip_id", &{:ok, &1}},
-      field: {:total, "total", &Price.float_type/1},
+      field: {:total, "total", &PriceV3.float_type/1},
       field: {:currency, "currency", &{:ok, &1}}
     ]
 
     passenger_fields = [field: {:id, "id", &{:ok, &1}}]
 
     [
-      has_many: {:passengers, "passengers", {Passenger, passenger_fields}},
-      has_many: {:prices, "costs", {Price, cost_fields}},
-      has_one: {:journey, "trip", {Journey, journey_fields}}
+      has_many: {:passengers, "passengers", {PassengerV3, passenger_fields}},
+      has_many: {:prices, "costs", {PriceV3, cost_fields}},
+      has_one: {:journey, "trip", {JourneyV3, journey_fields}}
     ]
   end
 end
@@ -468,12 +468,12 @@ end
 accessor = DataSchema.MapAccessor
 fields = Responses.price_response_schema()
 
-{:ok, price} = DataSchema.to_struct(price_response, PriceResponse, fields, accessor)
+{:ok, price} = DataSchema.to_struct(price_response, PriceResponseV3, fields, accessor)
 OurJourney.to_our_journey(price) |> IO.inspect(label: "PRICE RESPONSE")
 
 fields = Responses.book_response_schema()
 
-{:ok, book} = DataSchema.to_struct(book_response, BookResponse, fields, accessor)
+{:ok, book} = DataSchema.to_struct(book_response, BookResponseV2, fields, accessor)
 OurJourney.to_our_journey(book) |> IO.inspect(label: "BOOK RESPONSE")
 
 :ok
