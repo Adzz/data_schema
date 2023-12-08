@@ -103,7 +103,7 @@ defmodule DataSchema.Errors do
   defp do_flatten_errors(%__MODULE__{errors: [head | _rest]}, {path, msg}) do
     case head do
       {key, %DataSchema.Errors{} = error} -> do_flatten_errors(error, {[key | path], msg})
-      {key, error_message} when is_binary(error_message) -> {[key | path], error_message}
+      {key, error_message} -> {[key | path], error_message}
     end
   end
 end
